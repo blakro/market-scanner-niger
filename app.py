@@ -52,7 +52,6 @@ api_key = None
 if "GOOGLE_API_KEY" in st.secrets:
     api_key = st.secrets["GOOGLE_API_KEY"]
 
-# Fallback manuel si besoin
 if not api_key:
     with st.expander("🔐 Configuration (Admin)"):
         api_key = st.text_input("Clé API Google Gemini", type="password")
@@ -69,44 +68,53 @@ def save_data(furniture_type, style, material, price, score, risk_level):
     except Exception as e:
         print(f"Erreur sauvegarde CSV: {e}")
 
-# --- FONCTION D'ANALYSE ---
+# --- FONCTION D'ANALYSE (AVEC ROUE DE SECOURS) ---
 def analyze_image(image, price, api_key):
-    try:
-        genai.configure(api_key=api_key)
-        # Utilisation du modèle flash standard
-        model = genai.GenerativeModel('gemini-1.5-flash') 
+    genai.configure(api_key=api_key)
+    
+    # Liste des modèles à tester (du plus rapide au plus vieux)
+    # Cela évite l'erreur 404 si un modèle n'est pas dispo
+    models_to_try = ['gemini-1.5-flash-001', 'gemini-1.5-flash', 'gemini-pro']
+    
+    last_error = ""
 
-        prompt = f"""
-        Tu es un expert en ameublement basé à Niamey, Niger.
-        CONTEXTE : Analyse d'un meuble d'occasion pour un acheteur potentiel sur mobile.
-        PRIX PROPOSÉ : {price} FCFA.
-        CLIMAT : Sahélien.
+    for model_name in models_to_try:
+        try:
+            model = genai.GenerativeModel(model_name)
 
-        --- ÉTAPE 1 : SÉCURITÉ ---
-        Est-ce un meuble ? Si NON, réponds : "ERREUR_NON_MEUBLE".
-        Si OUI, passe à l'étape 2.
+            prompt = f"""
+            Tu es un expert en ameublement basé à Niamey, Niger.
+            CONTEXTE : Analyse d'un meuble d'occasion pour un acheteur potentiel sur mobile.
+            PRIX PROPOSÉ : {price} FCFA.
+            CLIMAT : Sahélien.
 
-        --- ÉTAPE 2 : ANALYSE ---
-        Réponds avec ce format exact (une info par ligne) :
-        TYPE_PRECIS: [Type]
-        STYLE_DESIGN: [Style]
-        MATIERE_REELLE: [Matière]
-        ETAT_STRUCTURE: [Bon/Moyen/Mauvais]
-        SCORE_CLIMAT_SAHEL: [Note/10]
-        SCORE_GLOBAL: [Note/10]
-        VERDICT_PRIX: [Cher/Correct/Affaire]
-        ANALYSE_VISUELLE: [3 phrases]
-        CONSEIL_NEGOCIATION: [1 phrase]
-        """
-        
-        response = model.generate_content([prompt, image])
-        return response.text
+            --- ÉTAPE 1 : SÉCURITÉ ---
+            Est-ce un meuble ? Si NON, réponds : "ERREUR_NON_MEUBLE".
+            Si OUI, passe à l'étape 2.
 
-    except Exception as e:
-        # ICI : On capture l'erreur réelle pour l'afficher
-        error_message = str(e)
-        print(f"ERREUR CRITIQUE GOOGLE: {error_message}") # S'affichera dans les logs
-        return f"ERREUR_DETAIL: {error_message}"
+            --- ÉTAPE 2 : ANALYSE ---
+            Réponds avec ce format exact (une info par ligne) :
+            TYPE_PRECIS: [Type]
+            STYLE_DESIGN: [Style]
+            MATIERE_REELLE: [Matière]
+            ETAT_STRUCTURE: [Bon/Moyen/Mauvais]
+            SCORE_CLIMAT_SAHEL: [Note/10]
+            SCORE_GLOBAL: [Note/10]
+            VERDICT_PRIX: [Cher/Correct/Affaire]
+            ANALYSE_VISUELLE: [3 phrases]
+            CONSEIL_NEGOCIATION: [1 phrase]
+            """
+            
+            response = model.generate_content([prompt, image])
+            return response.text # Si ça marche, on sort de la boucle !
+
+        except Exception as e:
+            # Si ce modèle échoue, on essaie le suivant
+            last_error = str(e)
+            continue
+    
+    # Si tous les modèles ont échoué
+    return f"ERREUR_DETAIL: Tous les modèles ont échoué. Dernière erreur : {last_error}"
 
 # --- INTERFACE ---
 st.title("🇳🇪 MarketScanner")
@@ -125,26 +133,23 @@ if uploaded_file and price_input > 0:
             st.error("⚠️ Clé API manquante. Vérifiez les 'Secrets' dans les réglages.")
         else:
             image = Image.open(uploaded_file)
-            st.image(image, caption="Analyse...", use_container_width=True) # Correction warning log
+            st.image(image, caption="Analyse...", use_container_width=True)
             
             with st.spinner("🕵️‍♂️ Interrogation de l'IA..."):
                 result_text = analyze_image(image, price_input, api_key)
 
-            # --- GESTION DES ERREURS ---
             if "ERREUR_NON_MEUBLE" in result_text:
                 st.error("🛑 Ce n'est pas un meuble.")
             
             elif "ERREUR_DETAIL:" in result_text:
-                # C'est ici que la magie opère : on affiche la vraie raison
-                st.error("❌ Oups ! Une erreur technique est survenue.")
+                st.error("❌ Erreur technique persistante.")
                 st.code(result_text.replace("ERREUR_DETAIL:", ""), language="text")
-                st.warning("Conseil : Vérifiez que votre Clé API est correcte et n'a pas d'espaces en trop.")
+                st.warning("Conseil : Votre clé API semble valide, mais aucun modèle n'est accessible. Vérifiez que 'Generative Language API' est bien activé sur votre compte Google Cloud.")
                 
             elif "ERREUR_API" in result_text:
                 st.error("Erreur de connexion générique.")
                 
             else:
-                # SUCCÈS
                 lines = result_text.split('\n')
                 data = {}
                 for line in lines:
@@ -192,7 +197,6 @@ if uploaded_file and price_input > 0:
 
                 save_data(data.get("TYPE_PRECIS"), data.get("STYLE_DESIGN"), data.get("MATIERE_REELLE"), price_input, global_val, verdict)
 
-# Admin footer
 st.markdown("<br><br>", unsafe_allow_html=True)
 with st.expander("🛡️ Zone Admin"):
     if st.checkbox("Données"):
