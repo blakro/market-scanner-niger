@@ -4,6 +4,7 @@ from PIL import Image
 import csv
 import os
 from datetime import datetime
+import time
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -68,43 +69,14 @@ def save_data(furniture_type, style, material, price, score, risk_level):
     except Exception as e:
         print(f"Erreur sauvegarde CSV: {e}")
 
-# --- FONCTION INTELLIGENTE : CHOIX DU MODÈLE ---
-def get_best_available_model():
-    """Scanne les modèles disponibles et privilégie le plus puissant (PRO)"""
-    try:
-        available_models = []
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                available_models.append(m.name)
-        
-        # ORDRE DE PRÉFÉRENCE (Du plus puissant au plus rapide)
-        preferences = [
-            'models/gemini-1.5-pro',         # Le plus intelligent (Top qualité)
-            'models/gemini-1.5-pro-001',     # Version stable précédente
-            'models/gemini-1.5-flash',       # Le plus rapide (Roue de secours)
-            'models/gemini-1.5-flash-001',
-            'models/gemini-pro'              # Ancienne génération
-        ]
-
-        # On prend le premier de la liste de préférence qui existe dans les modèles disponibles
-        for pref in preferences:
-            if pref in available_models:
-                return pref
-        
-        # Si on ne trouve rien de précis, on cherche n'importe quoi avec 'gemini'
-        for m in available_models:
-            if 'gemini' in m:
-                return m
-                    
-        return 'gemini-1.5-flash' # Fallback ultime
-    except Exception as e:
-        return None
-
-# --- FONCTION D'ANALYSE ---
+# --- FONCTION D'ANALYSE (Version Robuste - Flash Uniquement) ---
 def analyze_image(image, price, api_key):
     genai.configure(api_key=api_key)
     
-    # 1. Définition du Prompt
+    # ON FORCE LE MODÈLE "FLASH" (Le 4x4 fiable)
+    # C'est le plus stable pour une utilisation gratuite
+    model_name = 'gemini-1.5-flash' 
+
     prompt = f"""
     Tu es un expert en ameublement basé à Niamey, Niger.
     CONTEXTE : Analyse d'un meuble d'occasion pour un acheteur potentiel sur mobile.
@@ -128,29 +100,21 @@ def analyze_image(image, price, api_key):
     CONSEIL_NEGOCIATION: [1 phrase]
     """
 
-    # 2. Recherche automatique du bon modèle
-    model_name = get_best_available_model()
-    
-    if not model_name:
-        return "ERREUR_DETAIL: Impossible de lister les modèles. Vérifiez que 'Generative Language API' est activé dans votre console Google Cloud."
-
     try:
-        # 3. Tentative avec le modèle trouvé
-        # print(f"Tentative avec le modèle : {model_name}") # Debug
         model = genai.GenerativeModel(model_name)
         response = model.generate_content([prompt, image])
         return response.text
 
     except Exception as e:
-        return f"ERREUR_DETAIL: Échec avec le modèle {model_name}. Erreur : {str(e)}"
+        # Gestion des erreurs (Rate Limit 429 ou autre)
+        error_msg = str(e)
+        if "429" in error_msg or "Quota" in error_msg:
+            return "ERREUR_DETAIL: ⏳ Le serveur est surchargé. Attendez 30 secondes et réessayez."
+        return f"ERREUR_DETAIL: {error_msg}"
 
 # --- INTERFACE ---
 st.title("🇳🇪 MarketScanner")
 st.caption("L'Expert Meuble dans votre poche")
-
-# Indicateur du modèle utilisé (pour vérifier qu'on est bien en PRO)
-# On le cache pour l'utilisateur final, utile pour le debug
-# st.caption(f"🤖 IA : {get_best_available_model()}")
 
 uploaded_file = st.file_uploader("Photo du meuble", type=["jpg", "png", "jpeg", "webp"], label_visibility="collapsed")
 
@@ -167,21 +131,15 @@ if uploaded_file and price_input > 0:
             image = Image.open(uploaded_file)
             st.image(image, caption="Analyse...", use_container_width=True)
             
-            with st.spinner("🕵️‍♂️ Analyse approfondie (Mode Pro)..."):
+            with st.spinner("🕵️‍♂️ Analyse rapide..."):
                 result_text = analyze_image(image, price_input, api_key)
 
             if "ERREUR_NON_MEUBLE" in result_text:
                 st.error("🛑 Ce n'est pas un meuble.")
             
             elif "ERREUR_DETAIL:" in result_text:
-                st.error("❌ Erreur technique.")
-                st.warning(result_text.replace("ERREUR_DETAIL:", ""))
-                if "API key not valid" in result_text:
-                    st.caption("👉 Votre clé API semble incorrecte.")
-                elif "Generative Language API" in result_text:
-                    st.caption("👉 Activez l'API sur console.cloud.google.com")
-                elif "429" in result_text:
-                    st.caption("👉 Trop de requêtes (Mode Pro limité). Réessayez dans 1 minute.")
+                st.warning("⚠️ Petit souci technique...")
+                st.error(result_text.replace("ERREUR_DETAIL:", ""))
                 
             elif "ERREUR_API" in result_text:
                 st.error("Erreur de connexion générique.")
