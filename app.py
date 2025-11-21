@@ -19,7 +19,7 @@ st.set_page_config(
 # --- CSS DESIGN "LUMIÈRE & ÉPURÉ" AVEC EXO 2 ---
 st.markdown("""
     <style>
-    /* Importation Police Exo 2 (Google Fonts) */
+    /* Importation Police Exo 2 */
     @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;600;700;800&display=swap');
 
     /* RESET & BASE */
@@ -28,23 +28,22 @@ st.markdown("""
         color: #1f2937;
     }
 
-    /* ARRIÈRE-PLAN CLAIR (Style "Clean App") */
     .stApp {
-        background-color: #fafafa; /* Blanc cassé très doux */
+        background-color: #fafafa;
         background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
-        background-size: 20px 20px; /* Petit motif discret */
+        background-size: 20px 20px;
     }
     
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* CARTE RÉSULTAT (Style Minimaliste) */
+    /* CARTE RÉSULTAT */
     .tech-card {
         background: white;
         padding: 25px;
         border-radius: 16px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.05); /* Ombre très douce */
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
         margin-bottom: 20px;
         border: 1px solid #f3f4f6;
     }
@@ -52,14 +51,12 @@ st.markdown("""
     /* TITRES */
     h1 {
         color: #111827 !important;
-        font-weight: 800 !important; /* Extra Bold pour Exo 2 */
-        letter-spacing: -0.5px;
+        font-weight: 800 !important;
         text-align: center;
-        margin-bottom: 0 !important;
-        text-transform: uppercase; /* Style plus impactant */
+        text-transform: uppercase;
     }
     .tech-header {
-        color: #ea580c; /* Orange Niger */
+        color: #ea580c;
         font-weight: 700;
         font-size: 1em;
         margin-bottom: 15px;
@@ -71,46 +68,120 @@ st.markdown("""
         padding-bottom: 5px;
     }
     
-    /* TABLEAUX ÉPURÉS */
+    /* CERCLE DE SCORE (CSS PUR) */
+    .score-circle-container {
+        display: flex;
+        justify-content: center;
+        margin: 20px 0;
+    }
+    .score-circle {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: conic-gradient(#ea580c var(--percent), #f3f4f6 0);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+    .score-circle::before {
+        content: "";
+        width: 100px;
+        height: 100px;
+        background: white;
+        border-radius: 50%;
+        position: absolute;
+    }
+    .score-value {
+        position: relative;
+        font-size: 1.8em;
+        font-weight: 800;
+        color: #ea580c;
+    }
+    .score-label {
+        position: relative;
+        display: block;
+        text-align: center;
+        font-size: 0.7em;
+        color: #6b7280;
+        font-weight: 600;
+        margin-top: -5px;
+    }
+
+    /* JAUGES CUSTOM */
+    .gauge-container {
+        margin-bottom: 12px;
+    }
+    .gauge-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.85em;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+    .gauge-bg {
+        height: 10px;
+        background: #f3f4f6;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+    .gauge-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #fcd34d, #ea580c);
+        border-radius: 5px;
+    }
+
+    /* CARTE SCENARIO */
+    .scenario-card {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 15px;
+        text-align: center;
+        height: 100%;
+    }
+    .scenario-title {
+        font-weight: 800;
+        color: #374151;
+        margin-bottom: 5px;
+        text-transform: uppercase;
+        font-size: 0.9em;
+    }
+    .scenario-cost {
+        font-size: 0.8em;
+        color: #6b7280;
+        margin-bottom: 10px;
+    }
+    .scenario-result {
+        font-weight: 700;
+        color: #ea580c;
+        font-size: 1em;
+    }
+
+    /* TABLEAUX */
     .styled-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 0.9em;
-        margin-bottom: 10px;
-    }
-    .styled-table th {
-        text-align: left;
-        color: #9ca3af;
-        font-size: 0.85em;
-        text-transform: uppercase;
-        padding: 8px 0;
-        font-weight: 700;
     }
     .styled-table td {
         padding: 10px 0;
         border-bottom: 1px solid #f3f4f6;
-        color: #374151;
-        font-weight: 500;
     }
-    .styled-table tr:last-child td {
-        border-bottom: none;
-    }
-    
-    /* BADGES MODERNES (Pillules) */
+
+    /* BADGES */
     .verdict-badge {
         padding: 6px 12px;
         border-radius: 100px;
         color: white;
         font-weight: 700;
         font-size: 0.85em;
-        text-align: center;
-        display: inline-block;
     }
-    .bg-green { background-color: #10b981; color: white; }
-    .bg-orange { background-color: #f59e0b; color: white; }
-    .bg-red { background-color: #ef4444; color: white; }
+    .bg-green { background-color: #10b981; }
+    .bg-orange { background-color: #f59e0b; }
+    .bg-red { background-color: #ef4444; }
 
-    /* BOUTON PRINCIPAL (Orange Niger) */
+    /* BOUTON */
     .stButton > button {
         width: 100%;
         border-radius: 12px;
@@ -120,48 +191,13 @@ st.markdown("""
         font-weight: 700;
         border: none;
         font-size: 1.1em;
-        box-shadow: 0 4px 12px rgba(234, 88, 12, 0.2);
-        transition: all 0.2s ease;
         text-transform: uppercase;
-        letter-spacing: 1px;
+        box-shadow: 0 4px 12px rgba(234, 88, 12, 0.2);
     }
-    .stButton > button:hover {
-        background-color: #c2410c;
-        box-shadow: 0 6px 15px rgba(234, 88, 12, 0.3);
-        transform: translateY(-1px);
-    }
-
-    /* INPUTS ET ONGLETS */
-    .stTabs [data-baseweb="tab-list"] {
-        background-color: white;
-        border-radius: 12px;
-        padding: 5px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.03);
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 3rem;
-        border-radius: 8px;
-        font-weight: 600;
-        color: #6b7280;
-    }
+    
     .stTabs [aria-selected="true"] {
         background-color: #fff7ed !important;
         color: #ea580c !important;
-    }
-    .stNumberInput input {
-        border: 1px solid #e5e7eb;
-        border-radius: 10px;
-        background-color: white;
-        font-weight: 600;
-    }
-
-    /* Mobile Optimisation */
-    @media only screen and (max-width: 600px) {
-        .main .block-container {
-            padding-top: 2rem !important;
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
-        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -195,7 +231,7 @@ def clean_json_response(text):
         text = re.sub(r"```$", "", text)
     return text.strip()
 
-# --- SCANNER AUTO ROBUSTE ---
+# --- SCANNER AUTO ---
 def find_best_model_dynamic():
     try:
         available_models = []
@@ -203,8 +239,7 @@ def find_best_model_dynamic():
             if 'generateContent' in m.supported_generation_methods:
                 available_models.append(m.name)
         
-        if not available_models:
-            return None, "Aucun modèle trouvé."
+        if not available_models: return None, "Aucun modèle trouvé."
 
         for m in available_models:
             if 'flash' in m.lower(): return m, None
@@ -222,30 +257,34 @@ def analyze_image_pro(image, price, api_key):
     if not model_name: return None, scan_error
     
     prompt = f"""
-    Tu es un expert menuisier et tapissier à Niamey. Analyse ce meuble (Prix: {price} FCFA).
-    Si ce n'est pas un meuble, renvoie un JSON avec {{"is_furniture": false}}.
+    Tu es un expert menuisier à Niamey. Analyse ce meuble (Prix: {price} FCFA).
+    Si ce n'est pas un meuble, renvoie {{"is_furniture": false}}.
     Sinon, renvoie un JSON valide :
     {{
         "is_furniture": true,
-        "titre": "Type court (ex: Canapé d'angle)",
+        "titre": "Type court",
         "style": "Style identifié",
         "verdict_prix": "Cher / Correct / Affaire",
-        "score_global": 5,
-        "score_sahel": 5,
+        "scores": {{
+            "solidite": 75,
+            "materiaux": 60,
+            "restauration": 90,
+            "global": 70
+        }},
         "composition_materiau": [
-            {{"couche": "Surface", "compo": "ex: Simili", "etat": "ex: Usé"}},
+            {{"couche": "Surface", "compo": "ex: Cuir", "etat": "ex: Bon"}},
             {{"couche": "Structure", "compo": "ex: Bois", "etat": "ex: OK"}}
         ],
-        "resistance_usure": 3,
         "avis_menuisier": "Avis structure...",
         "avis_tapissier": "Avis tissu...",
-        "matrice_decision": [
-            {{"option": "Réparer", "difficulte": "Difficile", "cout": "Cher", "resultat": "Moyen"}},
-            {{"option": "Housse", "difficulte": "Facile", "cout": "Faible", "resultat": "Bon"}},
-            {{"option": "Jeter", "difficulte": "Moyen", "cout": "Nul", "resultat": "Nul"}}
+        "scenarios": [
+            {{"titre": "Réparer", "icone": "🛠️", "cout": "Cher", "resultat": "Moyen"}},
+            {{"titre": "Housse", "icone": "🛋️", "cout": "Faible", "resultat": "Bon"}},
+            {{"titre": "Négocier", "icone": "🤝", "cout": "0", "resultat": "Top"}}
         ],
         "recommandation_finale": "Conseil court."
     }}
+    NOTE: Les scores sont sur 100.
     """
     
     try:
@@ -261,31 +300,25 @@ def analyze_image_pro(image, price, api_key):
             except: return None, "Surcharge serveur"
         return None, str(e)
 
-# --- INTERFACE MOBILE ÉPURÉE ---
+# --- INTERFACE ---
 st.title("Gaskiyar Kaya 🇳🇪")
 st.markdown("<p style='text-align:center; color:#6b7280; margin-top:-10px; margin-bottom:20px; font-weight:500;'>L'Expert Meuble de confiance</p>", unsafe_allow_html=True)
 
-# Onglets stylisés
 tab_cam, tab_upload = st.tabs(["📸 Prendre Photo", "📂 Galerie"])
-
 img_file_buffer = None
 
 with tab_cam:
     camera_img = st.camera_input("Cadrez le meuble", label_visibility="collapsed")
-    if camera_img:
-        img_file_buffer = camera_img
+    if camera_img: img_file_buffer = camera_img
 
 with tab_upload:
     upload_img = st.file_uploader("Choisir une image", type=["jpg", "png", "jpeg", "webp"], label_visibility="collapsed")
-    if upload_img:
-        img_file_buffer = upload_img
+    if upload_img: img_file_buffer = upload_img
 
-# Input Prix (Step 50 000)
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown('<span style="font-weight:700; color:#1f2937">💰 Prix annoncé (FCFA)</span>', unsafe_allow_html=True)
 price_input = st.number_input("Prix", min_value=0, step=50000, value=0, format="%d", label_visibility="collapsed")
 
-# Bouton d'action
 st.markdown("<br>", unsafe_allow_html=True)
 if img_file_buffer and price_input >= 0:
     if st.button("LANCER L'ANALYSE"):
@@ -293,9 +326,9 @@ if img_file_buffer and price_input >= 0:
             st.error("⚠️ Clé API manquante")
         else:
             image = Image.open(img_file_buffer)
-            st.image(image, width=120) # Miniature discrète
+            st.image(image, width=120)
             
-            with st.spinner("🔍 Analyse détaillée en cours..."):
+            with st.spinner("🔍 Analyse visuelle approfondie..."):
                 json_str, info_msg = analyze_image_pro(image, price_input, api_key)
             
             if not json_str:
@@ -304,12 +337,10 @@ if img_file_buffer and price_input >= 0:
             else:
                 try:
                     data = json.loads(json_str)
-                    
                     if not data.get("is_furniture"):
                         st.error("🛑 Pas un meuble reconnu.")
                     else:
-                        
-                        # En-tête Clean
+                        # EN-TÊTE
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
                         c1, c2 = st.columns([2,1])
                         with c1:
@@ -321,53 +352,95 @@ if img_file_buffer and price_input >= 0:
                             st.markdown(f'<div style="text-align:right"><span class="verdict-badge {color}">{v}</span></div>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
 
-                        # 1. Matériau
+                        # SCORE CIRCULAIRE
+                        scores = data.get('scores', {})
+                        global_score = scores.get('global', 50)
+                        
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                        st.markdown('<div class="tech-header">🧬 Composition</div>', unsafe_allow_html=True)
-                        html_table = '<table class="styled-table"><thead><tr><th>Zone</th><th>Matière</th><th>État</th></tr></thead><tbody>'
-                        for row in data.get('composition_materiau', []):
-                            html_table += f"<tr><td>{row['couche']}</td><td>{row['compo']}</td><td>{row['etat']}</td></tr>"
-                        html_table += "</tbody></table>"
-                        st.markdown(html_table, unsafe_allow_html=True)
+                        st.markdown('<div class="tech-header">📊 Performance</div>', unsafe_allow_html=True)
+                        
+                        # Cercle HTML
+                        st.markdown(f"""
+                        <div class="score-circle-container">
+                            <div class="score-circle" style="--percent: {global_score}%">
+                                <div style="position:absolute; text-align:center;">
+                                    <div class="score-value">{global_score}%</div>
+                                    <span class="score-label">ÉTAT GLOBAL</span>
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # Barres de progression
+                        gauges = [
+                            ("🧱 Solidité Structurelle", scores.get('solidite', 0)),
+                            ("💎 Qualité Matériaux", scores.get('materiaux', 0)),
+                            ("🛠️ Facilité Restauration", scores.get('restauration', 0))
+                        ]
+                        
+                        for label, val in gauges:
+                            st.markdown(f"""
+                            <div class="gauge-container">
+                                <div class="gauge-label">
+                                    <span>{label}</span>
+                                    <span>{val}%</span>
+                                </div>
+                                <div class="gauge-bg">
+                                    <div class="gauge-fill" style="width: {val}%;"></div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
 
-                        # 2. Avis Experts
+                        # MATÉRIAU
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                        st.markdown('<div class="tech-header">📊 Audit Technique</div>', unsafe_allow_html=True)
-                        st.write("Note d'usure globale")
-                        st.progress(data.get('resistance_usure')/10)
+                        st.markdown('<div class="tech-header">🧬 Composition</div>', unsafe_allow_html=True)
+                        html_table = '<table class="styled-table"><tbody>'
+                        for row in data.get('composition_materiau', []):
+                            html_table += f"<tr><td width='30%'><b>{row['couche']}</b></td><td>{row['compo']} <br><small style='color:#ea580c'>{row['etat']}</small></td></tr>"
+                        html_table += "</tbody></table>"
+                        st.markdown(html_table, unsafe_allow_html=True)
+                        
                         st.markdown(f"""
-                        <div style="margin-top:15px; padding:15px; background:#f9fafb; border-radius:8px; font-size:0.95em; line-height:1.6;">
+                        <div style="margin-top:15px; padding:15px; background:#f9fafb; border-radius:10px; font-size:0.9em; border-left: 3px solid #ea580c;">
                             🪑 <b>Menuisier :</b> {data.get('avis_menuisier')}<br><br>
                             🧵 <b>Tapissier :</b> {data.get('avis_tapissier')}
                         </div>
                         """, unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
 
-                        # 3. Décision
+                        # SCÉNARIOS (MODE CARTES)
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
                         st.markdown('<div class="tech-header">⚖️ Scénarios</div>', unsafe_allow_html=True)
-                        matrix_html = '<table class="styled-table"><thead><tr><th>Option</th><th>Coût</th><th>Résultat</th></tr></thead><tbody>'
-                        for opt in data.get('matrice_decision', []):
-                            matrix_html += f"<tr><td><b>{opt['option']}</b></td><td>{opt['cout']}</td><td>{opt['resultat']}</td></tr>"
-                        matrix_html += "</tbody></table>"
-                        st.markdown(matrix_html, unsafe_allow_html=True)
+                        
+                        scenarios = data.get('scenarios', [])
+                        cols = st.columns(3)
+                        for i, col in enumerate(cols):
+                            if i < len(scenarios):
+                                scen = scenarios[i]
+                                col.markdown(f"""
+                                <div class="scenario-card">
+                                    <div style="font-size:1.5em; margin-bottom:5px;">{scen['icone']}</div>
+                                    <div class="scenario-title">{scen['titre']}</div>
+                                    <div class="scenario-cost">Coût: {scen['cout']}</div>
+                                    <div class="scenario-result">{scen['resultat']}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
 
-                        # 4. Conseil Final
+                        # CONSEIL FINAL
                         st.markdown(f"""
                         <div class="tech-card" style="background:#ecfdf5; border:1px solid #10b981; border-top:none;">
-                            <div style="color:#047857; font-weight:bold; margin-bottom:5px; text-transform:uppercase; font-size:0.9em;">💡 Le Conseil du Gwani</div>
+                            <div style="color:#047857; font-weight:800; margin-bottom:5px; text-transform:uppercase; font-size:0.9em;">💡 Le Conseil du Gwani</div>
                             <p style="color:#065f46; margin:0; font-weight:600;">{data.get('recommandation_finale')}</p>
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        save_data(data.get('titre'), price_input, data.get('score_global'), data.get('verdict_prix'))
+                        save_data(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
 
                 except json.JSONDecodeError:
                     st.error("Erreur lecture IA.")
 elif not img_file_buffer:
-    # Empty state simple
     st.markdown("""
     <div style='text-align:center; padding:40px; color:#9ca3af;'>
         <p style="font-size:3em;">📸</p>
