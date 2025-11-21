@@ -69,45 +69,22 @@ def save_data(furniture_type, style, material, price, score, risk_level):
     except Exception:
         pass
 
-# --- CERVEAU INTELLIGENT : Trouve le bon modèle ---
-def find_working_model():
-    """Liste les modèles dispos pour CETTE clé et choisit le meilleur."""
-    try:
-        available_models = []
-        # On demande à Google : "Qu'est-ce que j'ai le droit d'utiliser ?"
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                available_models.append(m.name)
-        
-        # Stratégie de choix :
-        # 1. D'abord un Flash (rapide et gratuit)
-        for m in available_models:
-            if 'flash' in m and '1.5' in m: return m
-        
-        # 2. Sinon un Pro stable
-        for m in available_models:
-            if 'pro' in m and '1.5' in m and 'exp' not in m: return m
-            
-        # 3. Sinon n'importe quel Gemini
-        for m in available_models:
-            if 'gemini' in m: return m
-            
-        return None
-    except Exception as e:
-        return None
-
-# --- ANALYSE ---
+# --- ANALYSE ROBUSTE (BOUCLE DE SECOURS) ---
 def analyze_image(image, price, api_key):
     genai.configure(api_key=api_key)
     
-    # Étape 1 : Trouver le modèle
-    model_name = find_working_model()
+    # LISTE D'ORDRE DE BATAILLE
+    # On essaie ces modèles l'un après l'autre.
+    # Si l'un échoue (404 ou 429), on passe au suivant.
+    models_priority = [
+        "gemini-1.5-flash",          # Le standard rapide
+        "gemini-1.5-flash-001",      # La version spécifique (souvent la solution au 404)
+        "gemini-1.5-flash-002",      # Nouvelle version
+        "gemini-1.5-pro",            # Plus lent mais puissant
+        "gemini-1.5-pro-001",
+        "gemini-pro"                 # L'ancêtre (très stable)
+    ]
     
-    if not model_name:
-        # Roue de secours ultime si la détection échoue
-        model_name = "models/gemini-1.5-flash"
-    
-    # Étape 2 : Le Prompt
     prompt = f"""
     Rôle : Expert ameublement à Niamey.
     Prix : {price} FCFA.
@@ -126,24 +103,28 @@ def analyze_image(image, price, api_key):
     CONSEIL_NEGOCIATION: [1 phrase]
     """
 
-    # Étape 3 : Tentative avec Retries (Anti-Crash 429)
-    try:
-        model = genai.GenerativeModel(model_name)
-        response = model.generate_content([prompt, image])
-        return response.text, model_name
+    last_error = ""
+    
+    # LA BOUCLE "TANT QU'IL Y A DE L'ESPOIR"
+    for model_name in models_priority:
+        try:
+            # On tente...
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content([prompt, image])
+            
+            # Si on arrive ici, c'est que ça a marché ! On renvoie le résultat.
+            return response.text, model_name
 
-    except Exception as e:
-        err = str(e)
-        if "429" in err:
-            time.sleep(2) # Petite pause
-            try:
-                # On réessaie une fois
-                response = model.generate_content([prompt, image])
-                return response.text, model_name
-            except:
-                return "ERREUR_DETAIL: Trop de monde sur le serveur. Réessayez dans 30s.", model_name
-        
-        return f"ERREUR_DETAIL: {err}", model_name
+        except Exception as e:
+            # Si ça plante, on note l'erreur et on continue la boucle
+            last_error = str(e)
+            # Petite pause si c'est une erreur de quota
+            if "429" in last_error:
+                time.sleep(1)
+            continue
+            
+    # Si on sort de la boucle, c'est que TOUT a échoué
+    return f"ERREUR_DETAIL: Tous les modèles ont échoué. Dernière erreur : {last_error}", "Aucun"
 
 # --- INTERFACE ---
 st.title("🇳🇪 MarketScanner")
@@ -167,16 +148,13 @@ if uploaded_file and price_input > 0:
             with st.spinner("🕵️‍♂️ Analyse en cours..."):
                 result_text, used_model = analyze_image(image, price_input, api_key)
 
-            # Debug discret (pour voir quel modèle a été choisi)
-            # st.caption(f"Modèle utilisé : {used_model}")
-
             if "ERREUR_NON_MEUBLE" in result_text:
                 st.error("🛑 Pas un meuble.")
             
             elif "ERREUR_DETAIL" in result_text:
                 st.error("Oups ! Souci technique.")
                 st.warning(result_text.replace("ERREUR_DETAIL:", ""))
-                st.caption(f"Modèle tenté : {used_model}")
+                st.caption("Conseil : Vérifiez votre clé API Google.")
                 
             else:
                 # Parsing
@@ -187,6 +165,7 @@ if uploaded_file and price_input > 0:
                         data[k.strip()] = v.strip()
 
                 st.success("Terminé !")
+                # st.caption(f"Modèle : {used_model}") # Debug optionnel
                 
                 # Affichage Résultat
                 col_res, col_verdict = st.columns([2,1])
@@ -198,7 +177,11 @@ if uploaded_file and price_input > 0:
                     color = "green" if "Affaire" in verdict else "red"
                     st.markdown(f":{color}[**{verdict}**]")
 
-                st.progress(int(data.get('SCORE_GLOBAL', '0').split('/')[0])/10, text="Note Globale")
+                try:
+                    score_val = int(data.get('SCORE_GLOBAL', '0').split('/')[0]) / 10
+                except:
+                    score_val = 0
+                st.progress(score_val, text="Note Globale")
                 
                 st.markdown(f"""
                 <div class="metric-card">
