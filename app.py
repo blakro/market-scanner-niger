@@ -10,18 +10,15 @@ st.set_page_config(
     page_title="MarketScanner Niger",
     page_icon="🛋️",
     layout="centered",
-    initial_sidebar_state="collapsed" # Menu caché par défaut sur mobile
+    initial_sidebar_state="collapsed"
 )
 
-# --- CSS OPTIMISÉ POUR MOBILE ---
+# --- CSS OPTIMISÉ ---
 st.markdown("""
     <style>
-    /* Cacher le menu hamburger et le footer Streamlit pour faire 'App Native' */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    
-    /* Couleurs et style */
     .stProgress > div > div > div > div { background-color: #d97706; }
     .metric-card { 
         background-color: #f8f9fa; 
@@ -29,7 +26,7 @@ st.markdown("""
         border-radius: 10px; 
         margin-bottom: 10px; 
         border-left: 5px solid #d97706;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Petit effet d'ombre joli */
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     .style-tag { 
         background-color: #e5e7eb; 
@@ -41,7 +38,6 @@ st.markdown("""
         display: inline-block;
         margin-top: 5px;
     }
-    /* Gros bouton pour les doigts tactiles */
     .stButton > button {
         width: 100%;
         border-radius: 10px;
@@ -51,99 +47,104 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- GESTION INTELLIGENTE DE LA CLÉ API ---
-# Sur mobile, on ne veut pas de barre latérale qui gêne.
-# On cherche la clé en arrière-plan.
+# --- GESTION CLÉ API ---
 api_key = None
-
-# 1. Essai via les Secrets (Configuration Cloud)
 if "GOOGLE_API_KEY" in st.secrets:
     api_key = st.secrets["GOOGLE_API_KEY"]
 
-# 2. Essai via saisie manuelle (uniquement si pas de secret, ex: test local)
+# Fallback manuel si besoin
 if not api_key:
-    with st.expander("🔐 Configuration (Admin seulement)"):
+    with st.expander("🔐 Configuration (Admin)"):
         api_key = st.text_input("Clé API Google Gemini", type="password")
 
 # --- FONCTION DE SAUVEGARDE ---
 def save_data(furniture_type, style, material, price, score, risk_level):
-    file_exists = os.path.exists("data_meubles.csv")
-    with open("data_meubles.csv", mode="a", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        if not file_exists:
-            writer.writerow(["Date", "Type_Meuble", "Style", "Matiere_Reelle", "Prix_FCFA", "Score_Global", "Niveau_Risque"])
-        writer.writerow([datetime.now(), furniture_type, style, material, price, score, risk_level])
+    try:
+        file_exists = os.path.exists("data_meubles.csv")
+        with open("data_meubles.csv", mode="a", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file)
+            if not file_exists:
+                writer.writerow(["Date", "Type_Meuble", "Style", "Matiere_Reelle", "Prix_FCFA", "Score_Global", "Niveau_Risque"])
+            writer.writerow([datetime.now(), furniture_type, style, material, price, score, risk_level])
+    except Exception as e:
+        print(f"Erreur sauvegarde CSV: {e}")
 
 # --- FONCTION D'ANALYSE ---
 def analyze_image(image, price, api_key):
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash') 
-
-    prompt = f"""
-    Tu es un expert en ameublement basé à Niamey, Niger.
-    
-    CONTEXTE : Analyse d'un meuble d'occasion pour un acheteur potentiel sur mobile.
-    PRIX PROPOSÉ : {price} FCFA.
-    CLIMAT : Sahélien (Chaleur sèche, Poussière).
-
-    --- ÉTAPE 1 : SÉCURITÉ (GUARDRAIL) ---
-    Regarde l'image. Est-ce que l'objet principal est un meuble (Canapé, Lit, Table, Armoire, Chaise, Fauteuil) ?
-    Si NON (c'est un animal, voiture, selfie, paysage, électroménager), réponds juste : "ERREUR_NON_MEUBLE".
-    Si OUI, passe à l'étape 2.
-
-    --- ÉTAPE 2 : IDENTIFICATION & ANALYSE ---
-    Réponds avec ce format exact (sans markdown, une info par ligne) :
-    
-    TYPE_PRECIS: [Ex: Canapé d'angle, Armoire 3 portes]
-    STYLE_DESIGN: [Ex: Louis XV, Moderne, Salon Marocain]
-    MATIERE_REELLE: [Matière identifiée vs ce qui est visible]
-    ETAT_STRUCTURE: [Bon/Moyen/Mauvais]
-    SCORE_CLIMAT_SAHEL: [Note sur 10]
-    SCORE_GLOBAL: [Note sur 10]
-    VERDICT_PRIX: [Cher/Correct/Affaire]
-    ANALYSE_VISUELLE: [3 phrases courtes et percutantes pour lecture mobile]
-    CONSEIL_NEGOCIATION: [Une phrase choc courte]
-    """
-
     try:
+        genai.configure(api_key=api_key)
+        # Utilisation du modèle flash standard
+        model = genai.GenerativeModel('gemini-1.5-flash') 
+
+        prompt = f"""
+        Tu es un expert en ameublement basé à Niamey, Niger.
+        CONTEXTE : Analyse d'un meuble d'occasion pour un acheteur potentiel sur mobile.
+        PRIX PROPOSÉ : {price} FCFA.
+        CLIMAT : Sahélien.
+
+        --- ÉTAPE 1 : SÉCURITÉ ---
+        Est-ce un meuble ? Si NON, réponds : "ERREUR_NON_MEUBLE".
+        Si OUI, passe à l'étape 2.
+
+        --- ÉTAPE 2 : ANALYSE ---
+        Réponds avec ce format exact (une info par ligne) :
+        TYPE_PRECIS: [Type]
+        STYLE_DESIGN: [Style]
+        MATIERE_REELLE: [Matière]
+        ETAT_STRUCTURE: [Bon/Moyen/Mauvais]
+        SCORE_CLIMAT_SAHEL: [Note/10]
+        SCORE_GLOBAL: [Note/10]
+        VERDICT_PRIX: [Cher/Correct/Affaire]
+        ANALYSE_VISUELLE: [3 phrases]
+        CONSEIL_NEGOCIATION: [1 phrase]
+        """
+        
         response = model.generate_content([prompt, image])
         return response.text
-    except Exception as e:
-        return "ERREUR_API"
 
-# --- INTERFACE UTILISATEUR (SIMPLE & ÉPURÉE) ---
+    except Exception as e:
+        # ICI : On capture l'erreur réelle pour l'afficher
+        error_message = str(e)
+        print(f"ERREUR CRITIQUE GOOGLE: {error_message}") # S'affichera dans les logs
+        return f"ERREUR_DETAIL: {error_message}"
+
+# --- INTERFACE ---
 st.title("🇳🇪 MarketScanner")
 st.caption("L'Expert Meuble dans votre poche")
 
-# Zone de chargement (Appareil photo sur mobile)
 uploaded_file = st.file_uploader("Photo du meuble", type=["jpg", "png", "jpeg", "webp"], label_visibility="collapsed")
 
 if not uploaded_file:
-    st.info("👆 Appuyez ci-dessus pour prendre une photo ou choisir dans la galerie.")
+    st.info("👆 Appuyez ci-dessus pour prendre une photo.")
 
-# Zone de prix
 price_input = st.number_input("Prix annoncé (FCFA)", min_value=1000, step=500, format="%d")
 
-# Bouton d'action (Pleine largeur grâce au CSS)
 if uploaded_file and price_input > 0:
     if st.button("🔍 SCANNER MAINTENANT"):
         if not api_key:
-            st.error("⚠️ Clé API manquante.")
+            st.error("⚠️ Clé API manquante. Vérifiez les 'Secrets' dans les réglages.")
         else:
             image = Image.open(uploaded_file)
-            # On affiche l'image en petit pour ne pas prendre tout l'écran mobile
-            st.image(image, caption="Analyse en cours...", use_column_width=True)
+            st.image(image, caption="Analyse...", use_container_width=True) # Correction warning log
             
-            with st.spinner("🕵️‍♂️ Analyse de l'expert..."):
+            with st.spinner("🕵️‍♂️ Interrogation de l'IA..."):
                 result_text = analyze_image(image, price_input, api_key)
 
+            # --- GESTION DES ERREURS ---
             if "ERREUR_NON_MEUBLE" in result_text:
                 st.error("🛑 Ce n'est pas un meuble.")
             
+            elif "ERREUR_DETAIL:" in result_text:
+                # C'est ici que la magie opère : on affiche la vraie raison
+                st.error("❌ Oups ! Une erreur technique est survenue.")
+                st.code(result_text.replace("ERREUR_DETAIL:", ""), language="text")
+                st.warning("Conseil : Vérifiez que votre Clé API est correcte et n'a pas d'espaces en trop.")
+                
             elif "ERREUR_API" in result_text:
-                st.error("Erreur de connexion.")
+                st.error("Erreur de connexion générique.")
                 
             else:
+                # SUCCÈS
                 lines = result_text.split('\n')
                 data = {}
                 for line in lines:
@@ -151,10 +152,8 @@ if uploaded_file and price_input > 0:
                         key, value = line.split(':', 1)
                         data[key.strip()] = value.strip()
 
-                # --- RÉSULTATS (Format Carte Mobile) ---
                 st.success("Analyse terminée !")
                 
-                # Titre et verdict
                 st.markdown(f"### {data.get('TYPE_PRECIS', 'Meuble')}")
                 
                 verdict = data.get("VERDICT_PRIX", "N/A")
@@ -169,19 +168,19 @@ if uploaded_file and price_input > 0:
                 
                 st.markdown("---")
 
-                # Jauges (Empilées pour mobile)
                 sahel_val = int(data.get("SCORE_CLIMAT_SAHEL", "0").split('/')[0]) if data.get("SCORE_CLIMAT_SAHEL") else 0
                 global_val = int(data.get("SCORE_GLOBAL", "0").split('/')[0]) if data.get("SCORE_GLOBAL") else 0
                 
-                st.caption("🌵 Résistance Sahel")
-                st.progress(sahel_val / 10)
-                
-                st.caption("⭐ Note Globale")
-                st.progress(global_val / 10)
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.caption("🌵 Sahel")
+                    st.progress(sahel_val / 10)
+                with col2:
+                    st.caption("⭐ Global")
+                    st.progress(global_val / 10)
                 
                 st.markdown("---")
 
-                # Carte d'analyse
                 st.markdown("**📝 L'avis de l'expert**")
                 st.markdown(f"""
                 <div class="metric-card">
@@ -191,22 +190,12 @@ if uploaded_file and price_input > 0:
                 </div>
                 """, unsafe_allow_html=True)
 
-                # Sauvegarde silencieuse
-                save_data(
-                    data.get("TYPE_PRECIS"), 
-                    data.get("STYLE_DESIGN"), 
-                    data.get("MATIERE_REELLE"),
-                    price_input, 
-                    global_val, 
-                    verdict
-                )
+                save_data(data.get("TYPE_PRECIS"), data.get("STYLE_DESIGN"), data.get("MATIERE_REELLE"), price_input, global_val, verdict)
 
-# --- FOOTER ADMIN (Discret en bas de page) ---
+# Admin footer
 st.markdown("<br><br>", unsafe_allow_html=True)
-with st.expander("🛡️ Zone Admin (Données)"):
-    if st.checkbox("Voir les données récoltées"):
+with st.expander("🛡️ Zone Admin"):
+    if st.checkbox("Données"):
         if os.path.exists("data_meubles.csv"):
             with open("data_meubles.csv", "r", encoding="utf-8") as f:
-                st.download_button("📥 Télécharger le fichier Excel (CSV)", f, "data_meubles.csv")
-        else:
-            st.info("Aucune donnée pour l'instant.")
+                st.download_button("📥 CSV", f, "data_meubles.csv")
