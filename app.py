@@ -16,18 +16,24 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS DESIGN "LUMIÈRE & ÉPURÉ" AVEC EXO 2 ---
+# --- CSS DESIGN "LUMIÈRE & ÉPURÉ" CORRIGÉ ---
 st.markdown("""
     <style>
     /* Importation Police Exo 2 */
     @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;600;700;800&display=swap');
 
-    /* RESET & BASE */
-    * {
-        font-family: 'Exo 2', sans-serif !important;
+    /* APPLICATION POLICE (SANS CASSER LES ICÔNES) */
+    html, body, [class*="css"] {
+        font-family: 'Exo 2', sans-serif;
         color: #1f2937;
     }
+    
+    /* On force la police sur les éléments textuels spécifiques pour être sûr */
+    h1, h2, h3, p, span, div, button, input, label {
+        font-family: 'Exo 2', sans-serif;
+    }
 
+    /* ARRIÈRE-PLAN */
     .stApp {
         background-color: #fafafa;
         background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
@@ -41,7 +47,7 @@ st.markdown("""
     /* CARTE RÉSULTAT */
     .tech-card {
         background: white;
-        padding: 25px;
+        padding: 20px;
         border-radius: 16px;
         box-shadow: 0 4px 20px rgba(0,0,0,0.05);
         margin-bottom: 20px;
@@ -54,6 +60,7 @@ st.markdown("""
         font-weight: 800 !important;
         text-align: center;
         text-transform: uppercase;
+        font-size: 1.8rem !important;
     }
     .tech-header {
         color: #ea580c;
@@ -68,7 +75,7 @@ st.markdown("""
         padding-bottom: 5px;
     }
     
-    /* CERCLE DE SCORE (CSS PUR) */
+    /* CERCLE DE SCORE */
     .score-circle-container {
         display: flex;
         justify-content: center;
@@ -108,7 +115,7 @@ st.markdown("""
         margin-top: -5px;
     }
 
-    /* JAUGES CUSTOM */
+    /* JAUGES */
     .gauge-container {
         margin-bottom: 12px;
     }
@@ -131,12 +138,12 @@ st.markdown("""
         border-radius: 5px;
     }
 
-    /* CARTE SCENARIO */
+    /* CARTES SCENARIOS */
     .scenario-card {
         background: #f9fafb;
         border: 1px solid #e5e7eb;
         border-radius: 12px;
-        padding: 15px;
+        padding: 10px;
         text-align: center;
         height: 100%;
     }
@@ -145,17 +152,17 @@ st.markdown("""
         color: #374151;
         margin-bottom: 5px;
         text-transform: uppercase;
-        font-size: 0.9em;
+        font-size: 0.8em;
     }
     .scenario-cost {
-        font-size: 0.8em;
+        font-size: 0.75em;
         color: #6b7280;
-        margin-bottom: 10px;
+        margin-bottom: 5px;
     }
     .scenario-result {
         font-weight: 700;
         color: #ea580c;
-        font-size: 1em;
+        font-size: 0.9em;
     }
 
     /* TABLEAUX */
@@ -181,7 +188,7 @@ st.markdown("""
     .bg-orange { background-color: #f59e0b; }
     .bg-red { background-color: #ef4444; }
 
-    /* BOUTONS GÉNÉRAUX */
+    /* BOUTONS */
     .stButton > button {
         width: 100%;
         border-radius: 12px;
@@ -195,27 +202,27 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(234, 88, 12, 0.2);
     }
     
-    /* CORRECTION BOUTON CAMÉRA (Le bouton noir illisible) */
-    div[data-testid="stCameraInput"] button {
-        background-color: #ea580c !important; /* Orange */
-        color: white !important;
-        border-radius: 50px !important;
-        font-weight: 700 !important;
-        border: 2px solid white !important;
+    /* CORRECTION BOUTON CAMÉRA (Orange et Lisible) */
+    button[kind="primary"] {
+        background-color: #ea580c !important;
+        border: none !important;
     }
-
+    
     .stTabs [aria-selected="true"] {
         background-color: #fff7ed !important;
         color: #ea580c !important;
     }
 
-    /* MOBILE OPTIMISATION & PADDING BAS */
+    /* MOBILE OPTIMISATION */
     @media only screen and (max-width: 600px) {
         .main .block-container {
             padding-top: 2rem !important;
             padding-left: 1rem !important;
             padding-right: 1rem !important;
-            padding-bottom: 150px !important; /* Ajout d'espace en bas pour éviter le chevauchement */
+            padding-bottom: 150px !important; /* Espace en bas pour éviter le chevauchement */
+        }
+        h1 {
+            font-size: 1.6rem !important;
         }
     }
     </style>
@@ -230,28 +237,22 @@ if not api_key:
     with st.expander("🔐 Configuration"):
         api_key = st.text_input("Clé API", type="password")
 
-# --- SAUVEGARDE SILENCIEUSE (DATA COLLECTION) ---
+# --- SAUVEGARDE SILENCIEUSE ---
 def save_data_silent(furniture_type, price, score, verdict):
-    """Sauvegarde les données d'analyse dans un CSV sans avertir l'utilisateur."""
     try:
         file_exists = os.path.exists("data_meubles.csv")
         with open("data_meubles.csv", mode="a", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
-            # Création de l'en-tête si le fichier est nouveau
             if not file_exists:
                 writer.writerow(["Date", "Type_Meuble", "Prix_FCFA", "Score_Global", "Verdict_IA"])
-            
-            # Écriture de la ligne de données
             writer.writerow([
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # Date précise
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 furniture_type, 
                 price, 
                 score, 
                 verdict
             ])
     except Exception:
-        # En cas d'erreur (disque plein, etc.), on ne fait RIEN.
-        # L'utilisateur ne doit pas voir d'erreur technique pour ça.
         pass
 
 # --- UTILITAIRE JSON ---
@@ -341,7 +342,6 @@ tab_cam, tab_upload = st.tabs(["📸 Prendre Photo", "📂 Galerie"])
 img_file_buffer = None
 
 with tab_cam:
-    # Note: Streamlit utilise la caméra par défaut du navigateur.
     camera_img = st.camera_input("Cadrez le meuble", label_visibility="collapsed")
     if camera_img: img_file_buffer = camera_img
 
@@ -468,7 +468,6 @@ if img_file_buffer and price_input >= 0:
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # === SAUVEGARDE SILENCIEUSE ===
                         save_data_silent(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
 
                 except json.JSONDecodeError:
@@ -481,17 +480,16 @@ elif not img_file_buffer:
     </div>
     """, unsafe_allow_html=True)
 
-# --- ZONE ADMIN SECRÈTE (Pour VOUS récupérer le fichier) ---
+# --- ZONE ADMIN SECRÈTE ---
 st.markdown("<br><br><br>", unsafe_allow_html=True)
 with st.expander("🔐 Admin Data"):
-    st.write("Cette zone est pour l'administrateur.")
     if os.path.exists("data_meubles.csv"):
         with open("data_meubles.csv", "r", encoding="utf-8") as f:
             st.download_button(
-                label="📥 Télécharger les données récoltées (CSV)",
+                label="📥 Télécharger les données (CSV)",
                 data=f,
                 file_name="gaskiyar_kaya_data.csv",
                 mime="text/csv"
             )
     else:
-        st.info("Aucune donnée récoltée pour le moment.")
+        st.info("Aucune donnée.")
