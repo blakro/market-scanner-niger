@@ -1,10 +1,10 @@
-# **🛋️ gaskiyar kaya 🇳🇪**
+# **🛋️ Gaskiyar Kaya 🇳🇪**
 
 **"la vérité du meuble". l'application ia qui audite n'importe quel meuble au niger.**
 
 ## **📖 à propos (about)**
 
-**gaskiyar kaya** (signifiant *"la vérité du matériel"* en haoussa) est bien plus qu'un simple comparateur de prix. c'est une intelligence artificielle experte en ameublement, conçue pour le contexte nigérien.  
+**Gaskiyar Kaya** (signifiant *"la vérité du matériel"* en haoussa) est bien plus qu'un simple comparateur de prix. c'est une intelligence artificielle experte en ameublement, conçue pour le contexte nigérien.  
 l'application ne se limite pas au "marketplace". elle s'utilise partout :
 
 * 🔨 **chez le menuisier** : pour vérifier si le bois est bien sec ou traité.  
