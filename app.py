@@ -181,7 +181,7 @@ st.markdown("""
     .bg-orange { background-color: #f59e0b; }
     .bg-red { background-color: #ef4444; }
 
-    /* BOUTON */
+    /* BOUTONS GÉNÉRAUX */
     .stButton > button {
         width: 100%;
         border-radius: 12px;
@@ -195,9 +195,28 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(234, 88, 12, 0.2);
     }
     
+    /* CORRECTION BOUTON CAMÉRA (Le bouton noir illisible) */
+    div[data-testid="stCameraInput"] button {
+        background-color: #ea580c !important; /* Orange */
+        color: white !important;
+        border-radius: 50px !important;
+        font-weight: 700 !important;
+        border: 2px solid white !important;
+    }
+
     .stTabs [aria-selected="true"] {
         background-color: #fff7ed !important;
         color: #ea580c !important;
+    }
+
+    /* MOBILE OPTIMISATION & PADDING BAS */
+    @media only screen and (max-width: 600px) {
+        .main .block-container {
+            padding-top: 2rem !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+            padding-bottom: 150px !important; /* Ajout d'espace en bas pour éviter le chevauchement */
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -316,12 +335,13 @@ def analyze_image_pro(image, price, api_key):
 st.title("Gaskiyar Kaya 🇳🇪")
 st.markdown("<p style='text-align:center; color:#6b7280; margin-top:-10px; margin-bottom:20px; font-weight:500;'>L'Expert Meuble de confiance</p>", unsafe_allow_html=True)
 
-st.info("📸 **Astuce :** Une seule photo bien cadrée suffit pour l'analyse.", icon="ℹ️")
+st.info("📸 **Astuce :** Une seule photo bien cadrée suffit. Si la caméra selfie s'ouvre, changez de caméra dans les options du navigateur.", icon="ℹ️")
 
 tab_cam, tab_upload = st.tabs(["📸 Prendre Photo", "📂 Galerie"])
 img_file_buffer = None
 
 with tab_cam:
+    # Note: Streamlit utilise la caméra par défaut du navigateur.
     camera_img = st.camera_input("Cadrez le meuble", label_visibility="collapsed")
     if camera_img: img_file_buffer = camera_img
 
@@ -448,7 +468,7 @@ if img_file_buffer and price_input >= 0:
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # === SAUVEGARDE SILENCIEUSE (INVISIBLE UTILISATEUR) ===
+                        # === SAUVEGARDE SILENCIEUSE ===
                         save_data_silent(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
 
                 except json.JSONDecodeError:
