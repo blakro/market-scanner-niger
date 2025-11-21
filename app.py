@@ -304,6 +304,9 @@ def analyze_image_pro(image, price, api_key):
 st.title("Gaskiyar Kaya 🇳🇪")
 st.markdown("<p style='text-align:center; color:#6b7280; margin-top:-10px; margin-bottom:20px; font-weight:500;'>L'Expert Meuble de confiance</p>", unsafe_allow_html=True)
 
+# Message de précision pour la photo unique
+st.info("📸 **Astuce :** Une seule photo bien cadrée suffit pour l'analyse.", icon="ℹ️")
+
 tab_cam, tab_upload = st.tabs(["📸 Prendre Photo", "📂 Galerie"])
 img_file_buffer = None
 
