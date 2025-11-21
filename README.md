@@ -54,10 +54,3 @@ si vous souhaitez cloner le projet pour le modifier :
 
 4. **lancer l'application :**  
    streamlit run app.py
-
-## **📄 licence**
-
-distribué sous la licence **mit**. voir le fichier license pour plus d'informations.  
-\<div align="center"\>  
-développé avec ❤️ pour le \<b\>niger\</b\> 🇳🇪  
-\</div\>
