@@ -5,7 +5,7 @@ import csv
 import os
 from datetime import datetime
 
-# --- CONFIGURATION DE LA PAGE (MOBILE FIRST) ---
+# --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
     page_title="MarketScanner Niger",
     page_icon="🛋️",
@@ -68,57 +68,89 @@ def save_data(furniture_type, style, material, price, score, risk_level):
     except Exception as e:
         print(f"Erreur sauvegarde CSV: {e}")
 
-# --- FONCTION D'ANALYSE (AVEC ROUE DE SECOURS) ---
+# --- FONCTION INTELLIGENTE : CHOIX DU MODÈLE ---
+def get_best_available_model():
+    """Scanne les modèles disponibles et privilégie le plus puissant (PRO)"""
+    try:
+        available_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
+        
+        # ORDRE DE PRÉFÉRENCE (Du plus puissant au plus rapide)
+        preferences = [
+            'models/gemini-1.5-pro',         # Le plus intelligent (Top qualité)
+            'models/gemini-1.5-pro-001',     # Version stable précédente
+            'models/gemini-1.5-flash',       # Le plus rapide (Roue de secours)
+            'models/gemini-1.5-flash-001',
+            'models/gemini-pro'              # Ancienne génération
+        ]
+
+        # On prend le premier de la liste de préférence qui existe dans les modèles disponibles
+        for pref in preferences:
+            if pref in available_models:
+                return pref
+        
+        # Si on ne trouve rien de précis, on cherche n'importe quoi avec 'gemini'
+        for m in available_models:
+            if 'gemini' in m:
+                return m
+                    
+        return 'gemini-1.5-flash' # Fallback ultime
+    except Exception as e:
+        return None
+
+# --- FONCTION D'ANALYSE ---
 def analyze_image(image, price, api_key):
     genai.configure(api_key=api_key)
     
-    # Liste des modèles à tester (du plus rapide au plus vieux)
-    # Cela évite l'erreur 404 si un modèle n'est pas dispo
-    models_to_try = ['gemini-1.5-flash-001', 'gemini-1.5-flash', 'gemini-pro']
+    # 1. Définition du Prompt
+    prompt = f"""
+    Tu es un expert en ameublement basé à Niamey, Niger.
+    CONTEXTE : Analyse d'un meuble d'occasion pour un acheteur potentiel sur mobile.
+    PRIX PROPOSÉ : {price} FCFA.
+    CLIMAT : Sahélien.
+
+    --- ÉTAPE 1 : SÉCURITÉ ---
+    Est-ce un meuble ? Si NON, réponds : "ERREUR_NON_MEUBLE".
+    Si OUI, passe à l'étape 2.
+
+    --- ÉTAPE 2 : ANALYSE ---
+    Réponds avec ce format exact (une info par ligne) :
+    TYPE_PRECIS: [Type]
+    STYLE_DESIGN: [Style]
+    MATIERE_REELLE: [Matière]
+    ETAT_STRUCTURE: [Bon/Moyen/Mauvais]
+    SCORE_CLIMAT_SAHEL: [Note/10]
+    SCORE_GLOBAL: [Note/10]
+    VERDICT_PRIX: [Cher/Correct/Affaire]
+    ANALYSE_VISUELLE: [3 phrases]
+    CONSEIL_NEGOCIATION: [1 phrase]
+    """
+
+    # 2. Recherche automatique du bon modèle
+    model_name = get_best_available_model()
     
-    last_error = ""
+    if not model_name:
+        return "ERREUR_DETAIL: Impossible de lister les modèles. Vérifiez que 'Generative Language API' est activé dans votre console Google Cloud."
 
-    for model_name in models_to_try:
-        try:
-            model = genai.GenerativeModel(model_name)
+    try:
+        # 3. Tentative avec le modèle trouvé
+        # print(f"Tentative avec le modèle : {model_name}") # Debug
+        model = genai.GenerativeModel(model_name)
+        response = model.generate_content([prompt, image])
+        return response.text
 
-            prompt = f"""
-            Tu es un expert en ameublement basé à Niamey, Niger.
-            CONTEXTE : Analyse d'un meuble d'occasion pour un acheteur potentiel sur mobile.
-            PRIX PROPOSÉ : {price} FCFA.
-            CLIMAT : Sahélien.
-
-            --- ÉTAPE 1 : SÉCURITÉ ---
-            Est-ce un meuble ? Si NON, réponds : "ERREUR_NON_MEUBLE".
-            Si OUI, passe à l'étape 2.
-
-            --- ÉTAPE 2 : ANALYSE ---
-            Réponds avec ce format exact (une info par ligne) :
-            TYPE_PRECIS: [Type]
-            STYLE_DESIGN: [Style]
-            MATIERE_REELLE: [Matière]
-            ETAT_STRUCTURE: [Bon/Moyen/Mauvais]
-            SCORE_CLIMAT_SAHEL: [Note/10]
-            SCORE_GLOBAL: [Note/10]
-            VERDICT_PRIX: [Cher/Correct/Affaire]
-            ANALYSE_VISUELLE: [3 phrases]
-            CONSEIL_NEGOCIATION: [1 phrase]
-            """
-            
-            response = model.generate_content([prompt, image])
-            return response.text # Si ça marche, on sort de la boucle !
-
-        except Exception as e:
-            # Si ce modèle échoue, on essaie le suivant
-            last_error = str(e)
-            continue
-    
-    # Si tous les modèles ont échoué
-    return f"ERREUR_DETAIL: Tous les modèles ont échoué. Dernière erreur : {last_error}"
+    except Exception as e:
+        return f"ERREUR_DETAIL: Échec avec le modèle {model_name}. Erreur : {str(e)}"
 
 # --- INTERFACE ---
 st.title("🇳🇪 MarketScanner")
 st.caption("L'Expert Meuble dans votre poche")
+
+# Indicateur du modèle utilisé (pour vérifier qu'on est bien en PRO)
+# On le cache pour l'utilisateur final, utile pour le debug
+# st.caption(f"🤖 IA : {get_best_available_model()}")
 
 uploaded_file = st.file_uploader("Photo du meuble", type=["jpg", "png", "jpeg", "webp"], label_visibility="collapsed")
 
@@ -130,26 +162,32 @@ price_input = st.number_input("Prix annoncé (FCFA)", min_value=1000, step=500, 
 if uploaded_file and price_input > 0:
     if st.button("🔍 SCANNER MAINTENANT"):
         if not api_key:
-            st.error("⚠️ Clé API manquante. Vérifiez les 'Secrets' dans les réglages.")
+            st.error("⚠️ Clé API manquante.")
         else:
             image = Image.open(uploaded_file)
             st.image(image, caption="Analyse...", use_container_width=True)
             
-            with st.spinner("🕵️‍♂️ Interrogation de l'IA..."):
+            with st.spinner("🕵️‍♂️ Analyse approfondie (Mode Pro)..."):
                 result_text = analyze_image(image, price_input, api_key)
 
             if "ERREUR_NON_MEUBLE" in result_text:
                 st.error("🛑 Ce n'est pas un meuble.")
             
             elif "ERREUR_DETAIL:" in result_text:
-                st.error("❌ Erreur technique persistante.")
-                st.code(result_text.replace("ERREUR_DETAIL:", ""), language="text")
-                st.warning("Conseil : Votre clé API semble valide, mais aucun modèle n'est accessible. Vérifiez que 'Generative Language API' est bien activé sur votre compte Google Cloud.")
+                st.error("❌ Erreur technique.")
+                st.warning(result_text.replace("ERREUR_DETAIL:", ""))
+                if "API key not valid" in result_text:
+                    st.caption("👉 Votre clé API semble incorrecte.")
+                elif "Generative Language API" in result_text:
+                    st.caption("👉 Activez l'API sur console.cloud.google.com")
+                elif "429" in result_text:
+                    st.caption("👉 Trop de requêtes (Mode Pro limité). Réessayez dans 1 minute.")
                 
             elif "ERREUR_API" in result_text:
                 st.error("Erreur de connexion générique.")
                 
             else:
+                # SUCCÈS
                 lines = result_text.split('\n')
                 data = {}
                 for line in lines:
@@ -197,6 +235,7 @@ if uploaded_file and price_input > 0:
 
                 save_data(data.get("TYPE_PRECIS"), data.get("STYLE_DESIGN"), data.get("MATIERE_REELLE"), price_input, global_val, verdict)
 
+# Admin footer
 st.markdown("<br><br>", unsafe_allow_html=True)
 with st.expander("🛡️ Zone Admin"):
     if st.checkbox("Données"):
