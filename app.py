@@ -211,16 +211,28 @@ if not api_key:
     with st.expander("🔐 Configuration"):
         api_key = st.text_input("Clé API", type="password")
 
-# --- SAUVEGARDE ---
-def save_data(furniture_type, price, score, verdict):
+# --- SAUVEGARDE SILENCIEUSE (DATA COLLECTION) ---
+def save_data_silent(furniture_type, price, score, verdict):
+    """Sauvegarde les données d'analyse dans un CSV sans avertir l'utilisateur."""
     try:
         file_exists = os.path.exists("data_meubles.csv")
         with open("data_meubles.csv", mode="a", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
+            # Création de l'en-tête si le fichier est nouveau
             if not file_exists:
-                writer.writerow(["Date", "Type", "Prix", "Score", "Verdict"])
-            writer.writerow([datetime.now(), furniture_type, price, score, verdict])
+                writer.writerow(["Date", "Type_Meuble", "Prix_FCFA", "Score_Global", "Verdict_IA"])
+            
+            # Écriture de la ligne de données
+            writer.writerow([
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # Date précise
+                furniture_type, 
+                price, 
+                score, 
+                verdict
+            ])
     except Exception:
+        # En cas d'erreur (disque plein, etc.), on ne fait RIEN.
+        # L'utilisateur ne doit pas voir d'erreur technique pour ça.
         pass
 
 # --- UTILITAIRE JSON ---
@@ -304,7 +316,6 @@ def analyze_image_pro(image, price, api_key):
 st.title("Gaskiyar Kaya 🇳🇪")
 st.markdown("<p style='text-align:center; color:#6b7280; margin-top:-10px; margin-bottom:20px; font-weight:500;'>L'Expert Meuble de confiance</p>", unsafe_allow_html=True)
 
-# Message de précision pour la photo unique
 st.info("📸 **Astuce :** Une seule photo bien cadrée suffit pour l'analyse.", icon="ℹ️")
 
 tab_cam, tab_upload = st.tabs(["📸 Prendre Photo", "📂 Galerie"])
@@ -362,7 +373,6 @@ if img_file_buffer and price_input >= 0:
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
                         st.markdown('<div class="tech-header">📊 Performance</div>', unsafe_allow_html=True)
                         
-                        # Cercle HTML
                         st.markdown(f"""
                         <div class="score-circle-container">
                             <div class="score-circle" style="--percent: {global_score}%">
@@ -374,7 +384,6 @@ if img_file_buffer and price_input >= 0:
                         </div>
                         """, unsafe_allow_html=True)
 
-                        # Barres de progression
                         gauges = [
                             ("🧱 Solidité Structurelle", scores.get('solidite', 0)),
                             ("💎 Qualité Matériaux", scores.get('materiaux', 0)),
@@ -412,7 +421,7 @@ if img_file_buffer and price_input >= 0:
                         """, unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
 
-                        # SCÉNARIOS (MODE CARTES)
+                        # SCÉNARIOS
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
                         st.markdown('<div class="tech-header">⚖️ Scénarios</div>', unsafe_allow_html=True)
                         
@@ -439,7 +448,8 @@ if img_file_buffer and price_input >= 0:
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        save_data(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
+                        # === SAUVEGARDE SILENCIEUSE (INVISIBLE UTILISATEUR) ===
+                        save_data_silent(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
 
                 except json.JSONDecodeError:
                     st.error("Erreur lecture IA.")
@@ -450,3 +460,18 @@ elif not img_file_buffer:
         <p style="font-weight:600;">Prenez une photo pour commencer</p>
     </div>
     """, unsafe_allow_html=True)
+
+# --- ZONE ADMIN SECRÈTE (Pour VOUS récupérer le fichier) ---
+st.markdown("<br><br><br>", unsafe_allow_html=True)
+with st.expander("🔐 Admin Data"):
+    st.write("Cette zone est pour l'administrateur.")
+    if os.path.exists("data_meubles.csv"):
+        with open("data_meubles.csv", "r", encoding="utf-8") as f:
+            st.download_button(
+                label="📥 Télécharger les données récoltées (CSV)",
+                data=f,
+                file_name="gaskiyar_kaya_data.csv",
+                mime="text/csv"
+            )
+    else:
+        st.info("Aucune donnée récoltée pour le moment.")
