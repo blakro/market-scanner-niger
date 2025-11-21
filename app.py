@@ -23,24 +23,42 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
     
-    /* Style global */
-    .main {
-        background-color: #f8f9fa;
+    /* Importation Police Moderne */
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap');
+
+    /* RESET & BASE */
+    * {
+        font-family: 'Poppins', sans-serif !important;
+    }
+
+    /* ARRIÈRE-PLAN VIBRANT (Gradient Animé Subtil) */
+    .stApp {
+        background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+        background-size: 400% 400%;
+        animation: gradient 15s ease infinite;
+    }
+    @keyframes gradient {
+        0% {background-position: 0% 50%;}
+        50% {background-position: 100% 50%;}
+        100% {background-position: 0% 50%;}
     }
     
     /* Cartes blanches avec ombre */
     .tech-card {
-        background-color: white;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
         padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         margin-bottom: 15px;
         border-top: 4px solid #d97706;
     }
     
     /* Titres de section */
     .tech-header {
-        color: #1f2937;
+        background: -webkit-linear-gradient(45deg, #d97706, #e11d48);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
         font-weight: 800;
         font-size: 1.1em;
         margin-bottom: 15px;
@@ -79,23 +97,42 @@ st.markdown("""
         font-size: 0.9em;
         text-align: center;
         display: inline-block;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
-    .bg-green { background-color: #10b981; }
-    .bg-orange { background-color: #f59e0b; }
-    .bg-red { background-color: #ef4444; }
+    .bg-green { background: linear-gradient(135deg, #10b981, #059669); }
+    .bg-orange { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .bg-red { background: linear-gradient(135deg, #ef4444, #b91c1c); }
 
     /* Bouton */
     .stButton > button {
         width: 100%;
-        border-radius: 8px;
-        height: 3.5em;
-        background-color: #d97706;
+        border-radius: 50px;
+        height: 4em;
+        background: linear-gradient(90deg, #d97706 0%, #ea580c 100%);
         color: white;
-        font-weight: bold;
+        font-weight: 800;
         border: none;
+        font-size: 1.1em;
+        box-shadow: 0 4px 10px rgba(217, 119, 6, 0.4);
+        transition: transform 0.2s;
     }
     .stButton > button:hover {
-        background-color: #b45309;
+        transform: scale(1.02);
+    }
+
+    /* Mobile Fixes */
+    @media only screen and (max-width: 600px) {
+        .main .block-container {
+            padding-top: 2rem !important;
+        }
+        h1 { font-size: 1.8rem !important; color: white !important; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .stTabs [data-baseweb="tab"] {
+            height: 3.5rem;
+            font-weight: 600;
+            background-color: rgba(255,255,255,0.8);
+            border-radius: 10px 10px 0 0;
+            margin-right: 2px;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -130,75 +167,65 @@ def clean_json_response(text):
         text = re.sub(r"```$", "", text)
     return text.strip()
 
-# --- CERVEAU INTELLIGENT (SCANNER AUTO) ---
+# --- SCANNER AUTO ROBUSTE ---
 def find_best_model_dynamic():
-    """Demande à Google la liste RÉELLE des modèles et choisit le meilleur."""
     try:
         available_models = []
-        # On récupère la liste officielle pour CETTE clé
         for m in genai.list_models():
             if 'generateContent' in m.supported_generation_methods:
                 available_models.append(m.name)
         
         if not available_models:
-            return None, "Aucun modèle trouvé. Activez l'API 'Generative AI' dans Google Cloud Console."
+            return None, "Aucun modèle trouvé."
 
-        # Stratégie de choix :
-        # 1. Chercher "Flash" (Rapide)
         for m in available_models:
             if 'flash' in m.lower(): return m, None
-            
-        # 2. Chercher "Pro" (Puissant)
         for m in available_models:
             if 'pro' in m.lower() and 'vision' not in m.lower(): return m, None
-            
-        # 3. N'importe quel Gemini
-        for m in available_models:
-            if 'gemini' in m.lower(): return m, None
-            
-        # 4. Le premier de la liste
         return available_models[0], None
-
     except Exception as e:
-        # Si même le scan échoue, on tente le nom le plus standard
-        return "models/gemini-1.5-flash", f"Erreur scan: {str(e)}"
+        return "models/gemini-1.5-flash", str(e)
 
-# --- ANALYSE PRO HYBRIDE ---
+# --- ANALYSE ---
 def analyze_image_pro(image, price, api_key):
     genai.configure(api_key=api_key)
-    
-    # 1. On trouve le BON modèle dynamiquement
     model_name, scan_error = find_best_model_dynamic()
     
-    if not model_name:
-        return None, scan_error
+    if not model_name: return None, scan_error
     
+    # PROMPT RENFORCÉ : FILTRE STRICT MEUBLES
     prompt = f"""
     Tu es un expert menuisier et tapissier à Niamey. Analyse ce meuble (Prix: {price} FCFA).
     
-    Si ce n'est pas un meuble, renvoie un JSON avec {{"is_furniture": false}}.
+    📍 TÂCHE 1 : VALIDATION DE L'IMAGE (Garde-fou)
+    Regarde attentivement l'image. Est-ce que l'objet PRINCIPAL est un meuble d'ameublement (Table, Armoire, Lit, Canapé, Fauteuil, Commode, Chaise) ?
     
-    Sinon, renvoie un JSON valide avec exactement cette structure :
+    ⛔ SI NON (Ex: Voiture, Animal, Être humain, Paysage, Électroménager, Vêtement, Accessoire, Bâtiment) :
+    Renvoie EXACTEMENT et UNIQUEMENT ce JSON :
+    {{ "is_furniture": false }}
+    
+    ✅ SI OUI (C'est bien un meuble) :
+    Renvoie un JSON complet et valide avec cette structure exacte :
     {{
         "is_furniture": true,
-        "titre": "Type précis du meuble",
-        "style": "Style identifié",
+        "titre": "Type court (ex: Canapé d'angle, Lit King Size)",
+        "style": "Style identifié (ex: Moderne, Rustique, Import Dubaï)",
         "verdict_prix": "Cher / Correct / Affaire",
         "score_global": 5,
         "score_sahel": 5,
         "composition_materiau": [
-            {{"couche": "1. Surface", "compo": "ex: Cuir PU", "etat": "ex: Craquelé"}},
-            {{"couche": "2. Structure", "compo": "ex: Bois rouge", "etat": "ex: Solide"}}
+            {{"couche": "Surface", "compo": "ex: Simili-cuir", "etat": "ex: Griffé/Pelé"}},
+            {{"couche": "Structure", "compo": "ex: Bois massif", "etat": "ex: Robuste"}}
         ],
         "resistance_usure": 3,
-        "avis_menuisier": "Analyse structurelle courte...",
-        "avis_tapissier": "Analyse tissu/mousse courte...",
+        "avis_menuisier": "Analyse courte de la structure et solidité...",
+        "avis_tapissier": "Analyse courte du tissu/confort/finitions...",
         "matrice_decision": [
-            {{"option": "Réparation", "difficulte": "⭐⭐⭐", "cout": "Cher", "resultat": "Moyen"}},
-            {{"option": "Housse", "difficulte": "⭐", "cout": "Faible", "resultat": "Bon"}},
-            {{"option": "Jeter", "difficulte": "⭐", "cout": "Nul", "resultat": "Nul"}}
+            {{"option": "Réparer", "difficulte": "Difficile", "cout": "Cher", "resultat": "Moyen"}},
+            {{"option": "Housse", "difficulte": "Facile", "cout": "Faible", "resultat": "Bon"}},
+            {{"option": "Jeter", "difficulte": "Moyen", "cout": "Nul", "resultat": "Nul"}}
         ],
-        "recommandation_finale": "Conseil final court et direct."
+        "recommandation_finale": "Conseil final court et direct pour l'acheteur."
     }}
     """
     
@@ -206,111 +233,122 @@ def analyze_image_pro(image, price, api_key):
         model = genai.GenerativeModel(model_name)
         response = model.generate_content([prompt, image])
         return clean_json_response(response.text), model_name
-
     except Exception as e:
-        # Si l'appel échoue (ex: Quota 429), on attend et on réessaie une fois
         if "429" in str(e):
             time.sleep(2)
             try:
                 response = model.generate_content([prompt, image])
                 return clean_json_response(response.text), model_name
-            except:
-                return None, f"Serveur surchargé (429) sur {model_name}"
-        
-        return None, f"Erreur sur {model_name}: {str(e)}"
+            except: return None, "Surcharge serveur"
+        return None, str(e)
 
-# --- INTERFACE ---
-st.title("🇳🇪 MarketScanner PRO")
-st.caption("L'Expert Meuble : Analyse Technique Complète")
+# --- INTERFACE MOBILE ---
+st.title("🇳🇪 MarketScanner")
+st.markdown("<p style='color:white; opacity:0.9; margin-top:-15px; font-weight:300;'>L'Expert Meuble IA dans votre poche</p>", unsafe_allow_html=True)
 
-uploaded_file = st.file_uploader("Photo", type=["jpg", "png", "jpeg", "webp"], label_visibility="collapsed")
+# Onglets stylisés
+tab_cam, tab_upload = st.tabs(["📸 Prendre Photo", "📂 Galerie"])
 
-if not uploaded_file:
-    st.info("📸 Prenez une photo pour commencer l'audit technique.")
+img_file_buffer = None
 
-price_input = st.number_input("Prix Vendeur (FCFA)", min_value=0, step=500, value=0, format="%d")
+with tab_cam:
+    camera_img = st.camera_input("Cadrez le meuble", label_visibility="collapsed")
+    if camera_img:
+        img_file_buffer = camera_img
 
-if uploaded_file and price_input > 0:
-    if st.button("🔍 LANCER L'AUDIT TECHNIQUE"):
+with tab_upload:
+    upload_img = st.file_uploader("Choisir une image", type=["jpg", "png", "jpeg", "webp"], label_visibility="collapsed")
+    if upload_img:
+        img_file_buffer = upload_img
+
+# Input Prix (avec style carte pour le rendre visible sur fond coloré)
+st.markdown('<div class="tech-card" style="padding:15px; margin-bottom:10px;">', unsafe_allow_html=True)
+st.markdown('<div class="tech-header" style="margin-bottom:5px;">💰 Prix annoncé (FCFA)</div>', unsafe_allow_html=True)
+price_input = st.number_input("Prix", min_value=0, step=500, value=0, format="%d", label_visibility="collapsed")
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Bouton d'action
+if img_file_buffer and price_input > 0:
+    if st.button("🔍 SCANNER LE MEUBLE"):
         if not api_key:
             st.error("⚠️ Clé API manquante")
         else:
-            image = Image.open(uploaded_file)
-            st.image(image, use_container_width=True)
+            image = Image.open(img_file_buffer)
+            st.image(image, width=150) # Miniature
             
-            with st.spinner("🧠 Identification du modèle IA et analyse..."):
+            with st.spinner("🔮 Analyse Futuriste en cours..."):
                 json_str, info_msg = analyze_image_pro(image, price_input, api_key)
             
             if not json_str:
-                st.error("❌ Erreur technique persistante.")
-                st.caption(f"Détail : {info_msg}")
+                st.error("Erreur technique.")
+                st.caption(info_msg)
             else:
                 try:
                     data = json.loads(json_str)
                     
                     if not data.get("is_furniture"):
-                        st.error("🛑 Ce n'est pas un meuble.")
+                        st.error("🛑 OBJET NON RECONNU")
+                        st.warning("Cette application ne scanne que les MEUBLES (Tables, Lits, Salons, Armoires...). Merci de réessayer.")
                     else:
-                        # --- 1. EN-TÊTE ---
-                        st.success("Analyse terminée !")
-                        # st.caption(f"IA utilisée : {info_msg}") # Debug invisible
+                        st.balloons() # Petite fête si ça marche !
                         
-                        col1, col2 = st.columns([2, 1])
-                        with col1:
-                            st.markdown(f"### {data.get('titre')}")
-                            st.caption(f"Style : {data.get('style')}")
-                        with col2:
-                            v = data.get('verdict_prix', 'N/A')
-                            c = "bg-green" if "Affaire" in v else "bg-orange" if "Correct" in v else "bg-red"
-                            st.markdown(f'<div class="verdict-badge {c}">{v}</div>', unsafe_allow_html=True)
-
-                        # --- 2. IDENTIFICATION MATÉRIAU (Tableau) ---
+                        # En-tête dans une carte Glassmorphism
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                        st.markdown('<div class="tech-header">🧬 1. Composition du Matériau</div>', unsafe_allow_html=True)
-                        
-                        html_table = '<table class="styled-table"><thead><tr><th>Couche</th><th>Composition</th><th>État détecté</th></tr></thead><tbody>'
+                        c1, c2 = st.columns([2,1])
+                        with c1:
+                            st.markdown(f"<h3 style='margin:0; color:#1f2937'>{data.get('titre')}</h3>", unsafe_allow_html=True)
+                            st.markdown(f"<i style='color:#6b7280; font-size:0.9em'>{data.get('style')}</i>", unsafe_allow_html=True)
+                        with c2:
+                            v = data.get('verdict_prix', 'N/A')
+                            color = "bg-green" if "Affaire" in v else "bg-orange" if "Correct" in v else "bg-red"
+                            st.markdown(f'<div class="verdict-badge {color}">{v}</div>', unsafe_allow_html=True)
+                        st.markdown('</div>', unsafe_allow_html=True)
+
+                        # 1. Matériau
+                        st.markdown('<div class="tech-card">', unsafe_allow_html=True)
+                        st.markdown('<div class="tech-header">🧬 Matériau</div>', unsafe_allow_html=True)
+                        html_table = '<table class="styled-table"><thead><tr><th>Zone</th><th>Matière</th><th>État</th></tr></thead><tbody>'
                         for row in data.get('composition_materiau', []):
-                            html_table += f"<tr><td><b>{row['couche']}</b></td><td>{row['compo']}</td><td>{row['etat']}</td></tr>"
+                            html_table += f"<tr><td>{row['couche']}</td><td>{row['compo']}</td><td>{row['etat']}</td></tr>"
                         html_table += "</tbody></table>"
                         st.markdown(html_table, unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
 
-                        # --- 3. RÉSISTANCE & AUDIT ---
+                        # 2. Avis Experts
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                        st.markdown('<div class="tech-header">📊 2. Résistance & Audit Expert</div>', unsafe_allow_html=True)
-                        
-                        res_score = data.get('resistance_usure', 0)
-                        st.write(f"**Résistance à l'usure : {res_score}/10**")
-                        st.progress(res_score/10)
-                        
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            st.info(f"🪑 **Menuisier :**\n{data.get('avis_menuisier')}")
-                        with c2:
-                            st.warning(f"🧵 **Tapissier :**\n{data.get('avis_tapissier')}")
+                        st.markdown('<div class="tech-header">📊 Audit Expert</div>', unsafe_allow_html=True)
+                        st.write(f"**Usure : {data.get('resistance_usure')}/10**")
+                        st.progress(data.get('resistance_usure')/10)
+                        st.info(f"🪑 {data.get('avis_menuisier')}")
+                        st.warning(f"🧵 {data.get('avis_tapissier')}")
                         st.markdown('</div>', unsafe_allow_html=True)
 
-                        # --- 4. MATRICE DE DÉCISION ---
+                        # 3. Décision
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                        st.markdown('<div class="tech-header">⚖️ 3. Matrice de Décision (Que faire ?)</div>', unsafe_allow_html=True)
-                        
-                        matrix_html = '<table class="styled-table"><thead><tr><th>Option</th><th>Difficulté</th><th>Coût</th><th>Résultat</th></tr></thead><tbody>'
+                        st.markdown('<div class="tech-header">⚖️ Options</div>', unsafe_allow_html=True)
+                        matrix_html = '<table class="styled-table"><thead><tr><th>Option</th><th>Coût</th><th>Résultat</th></tr></thead><tbody>'
                         for opt in data.get('matrice_decision', []):
-                            matrix_html += f"<tr><td><b>{opt['option']}</b></td><td>{opt['difficulte']}</td><td>{opt['cout']}</td><td>{opt['resultat']}</td></tr>"
+                            matrix_html += f"<tr><td><b>{opt['option']}</b></td><td>{opt['cout']}</td><td>{opt['resultat']}</td></tr>"
                         matrix_html += "</tbody></table>"
                         st.markdown(matrix_html, unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
 
-                        # --- 5. CONCLUSION ---
+                        # 4. Conseil Final
                         st.markdown(f"""
-                        <div class="tech-card" style="border-top: 4px solid #10b981;">
-                            <div class="tech-header">💡 Recommandation Finale</div>
-                            <p style="font-size: 1.1em;">{data.get('recommandation_finale')}</p>
+                        <div class="tech-card" style="border-left: 5px solid #10b981; border-top:none;">
+                            <div class="tech-header" style="color:#10b981">💡 Conseil Pro</div>
+                            {data.get('recommandation_finale')}
                         </div>
                         """, unsafe_allow_html=True)
                         
                         save_data(data.get('titre'), price_input, data.get('score_global'), data.get('verdict_prix'))
 
                 except json.JSONDecodeError:
-                    st.error("Erreur de lecture des données (Format IA invalide). Réessayez.")
-                    st.code(json_str)
+                    st.error("Erreur lecture IA.")
+elif not img_file_buffer:
+    # Petit message stylé si rien n'est chargé
+    st.markdown("""
+    <div style='text-align:center; padding:40px; color:white; opacity:0.8;'>
+        📸<br><b>Prenez une photo</b> pour révéler les secrets de ce meuble
+    </div>
+    """, unsafe_allow_html=True)
