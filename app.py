@@ -125,20 +125,44 @@ def save_data(furniture_type, price, score, verdict):
 def clean_json_response(text):
     """Nettoie la réponse de l'IA pour extraire le JSON pur."""
     text = text.strip()
-    # Enlever les balises markdown ```json ... ```
     if text.startswith("```"):
         text = re.sub(r"^```(json)?", "", text)
         text = re.sub(r"```$", "", text)
     return text.strip()
 
-# --- ANALYSE AVANCÉE (JSON) ---
+# --- CERVEAU INTELLIGENT (Réintégration du Scan) ---
+def find_working_model():
+    """Scanne les modèles disponibles pour CETTE clé et choisit le meilleur."""
+    try:
+        available_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
+        
+        # 1. Flash (Priorité absolue pour la vitesse)
+        for m in available_models:
+            if 'flash' in m.lower() and '1.5' in m: return m
+        
+        # 2. Pro (Si pas de Flash)
+        for m in available_models:
+            if 'pro' in m.lower() and '1.5' in m and 'exp' not in m: return m
+            
+        # 3. N'importe quel Gemini
+        for m in available_models:
+            if 'gemini' in m.lower(): return m
+            
+        # Fallback ultime (au cas où la liste est vide mais que l'appel direct marche)
+        return "models/gemini-1.5-flash"
+    except Exception:
+        return "models/gemini-1.5-flash"
+
+# --- ANALYSE PRO HYBRIDE ---
 def analyze_image_pro(image, price, api_key):
     genai.configure(api_key=api_key)
     
-    # Modèle robuste avec fallback
-    models = ["gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-pro"]
+    # 1. On trouve le BON modèle (au lieu de deviner)
+    model_name = find_working_model()
     
-    # Prompt structuré pour forcer le format JSON riche
     prompt = f"""
     Tu es un expert menuisier et tapissier à Niamey. Analyse ce meuble (Prix: {price} FCFA).
     
@@ -168,17 +192,19 @@ def analyze_image_pro(image, price, api_key):
     }}
     """
     
-    for model_name in models:
+    try:
+        model = genai.GenerativeModel(model_name)
+        response = model.generate_content([prompt, image])
+        return clean_json_response(response.text), model_name
+    except Exception as e:
+        # Si le modèle trouvé échoue, on tente une roue de secours basique
         try:
-            model = genai.GenerativeModel(model_name)
-            # On force la réponse en JSON (mode text pour compatibilité flash, on parse manuellement)
+            time.sleep(2)
+            model = genai.GenerativeModel('gemini-1.5-flash')
             response = model.generate_content([prompt, image])
-            return clean_json_response(response.text), model_name
-        except Exception as e:
-            if "429" in str(e): time.sleep(1)
-            continue
-            
-    return None, "Erreur"
+            return clean_json_response(response.text), "backup-flash"
+        except Exception as e2:
+            return None, str(e2)
 
 # --- INTERFACE ---
 st.title("🇳🇪 MarketScanner PRO")
@@ -199,11 +225,12 @@ if uploaded_file and price_input > 0:
             image = Image.open(uploaded_file)
             st.image(image, use_container_width=True)
             
-            with st.spinner("🧠 Analyse structurelle et matériaux en cours..."):
+            with st.spinner("🧠 Recherche du meilleur modèle et analyse..."):
                 json_str, model_used = analyze_image_pro(image, price_input, api_key)
             
             if not json_str:
-                st.error("Erreur technique (IA non disponible). Réessayez.")
+                st.error("❌ Erreur technique persistante.")
+                st.caption(f"Détail : {model_used}") # Affiche l'erreur réelle
             else:
                 try:
                     data = json.loads(json_str)
@@ -227,7 +254,6 @@ if uploaded_file and price_input > 0:
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
                         st.markdown('<div class="tech-header">🧬 1. Composition du Matériau</div>', unsafe_allow_html=True)
                         
-                        # Construction du tableau HTML manuel pour le style
                         html_table = '<table class="styled-table"><thead><tr><th>Couche</th><th>Composition</th><th>État détecté</th></tr></thead><tbody>'
                         for row in data.get('composition_materiau', []):
                             html_table += f"<tr><td><b>{row['couche']}</b></td><td>{row['compo']}</td><td>{row['etat']}</td></tr>"
@@ -269,9 +295,8 @@ if uploaded_file and price_input > 0:
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # Sauvegarde
                         save_data(data.get('titre'), price_input, data.get('score_global'), data.get('verdict_prix'))
 
                 except json.JSONDecodeError:
-                    st.error("Erreur de lecture des données structurées. L'IA a renvoyé un format invalide.")
-                    st.code(json_str) # Debug
+                    st.error("Erreur de lecture des données (Format IA invalide). Réessayez.")
+                    st.code(json_str)
