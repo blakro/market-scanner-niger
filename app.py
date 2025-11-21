@@ -5,6 +5,8 @@ import csv
 import os
 from datetime import datetime
 import time
+import json
+import re
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -14,36 +16,86 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS ---
+# --- CSS PRO (Design "Carte") ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    .stProgress > div > div > div > div { background-color: #d97706; }
-    .metric-card { 
-        background-color: #f8f9fa; 
-        padding: 15px; 
-        border-radius: 10px; 
-        margin-bottom: 10px; 
-        border-left: 5px solid #d97706;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    
+    /* Style global */
+    .main {
+        background-color: #f8f9fa;
     }
-    .style-tag { 
-        background-color: #e5e7eb; 
-        padding: 5px 10px; 
-        border-radius: 15px; 
-        font-size: 0.8em; 
-        color: #374151; 
+    
+    /* Cartes blanches avec ombre */
+    .tech-card {
+        background-color: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 15px;
+        border-top: 4px solid #d97706;
+    }
+    
+    /* Titres de section */
+    .tech-header {
+        color: #1f2937;
+        font-weight: 800;
+        font-size: 1.1em;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    /* Tables personnalisées */
+    .styled-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9em;
+        margin-bottom: 10px;
+    }
+    .styled-table th {
+        background-color: #f3f4f6;
+        color: #374151;
+        padding: 8px;
+        text-align: left;
+        border-bottom: 2px solid #e5e7eb;
+    }
+    .styled-table td {
+        padding: 8px;
+        border-bottom: 1px solid #eee;
+        color: #4b5563;
+    }
+    
+    /* Badges */
+    .verdict-badge {
+        padding: 5px 10px;
+        border-radius: 20px;
+        color: white;
         font-weight: bold;
+        font-size: 0.9em;
+        text-align: center;
         display: inline-block;
-        margin-top: 5px;
     }
+    .bg-green { background-color: #10b981; }
+    .bg-orange { background-color: #f59e0b; }
+    .bg-red { background-color: #ef4444; }
+
+    /* Bouton */
     .stButton > button {
         width: 100%;
-        border-radius: 10px;
-        height: 3em;
+        border-radius: 8px;
+        height: 3.5em;
+        background-color: #d97706;
+        color: white;
         font-weight: bold;
+        border: none;
+    }
+    .stButton > button:hover {
+        background-color: #b45309;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -58,165 +110,168 @@ if not api_key:
         api_key = st.text_input("Clé API", type="password")
 
 # --- SAUVEGARDE ---
-def save_data(furniture_type, style, material, price, score, risk_level):
+def save_data(furniture_type, price, score, verdict):
     try:
         file_exists = os.path.exists("data_meubles.csv")
         with open("data_meubles.csv", mode="a", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
             if not file_exists:
-                writer.writerow(["Date", "Type", "Style", "Matiere", "Prix", "Score", "Risque"])
-            writer.writerow([datetime.now(), furniture_type, style, material, price, score, risk_level])
+                writer.writerow(["Date", "Type", "Prix", "Score", "Verdict"])
+            writer.writerow([datetime.now(), furniture_type, price, score, verdict])
     except Exception:
         pass
 
-# --- FONCTION INTELLIGENTE : LISTER ET CHOISIR ---
-def get_real_model():
-    """Demande à Google la liste des modèles DISPONIBLES et choisit le meilleur."""
-    try:
-        available_models = []
-        # On liste ce qui existe vraiment pour cette clé
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                available_models.append(m.name)
-        
-        if not available_models:
-            return None, "Aucun modèle trouvé. Activez l'API Generative AI dans Google Cloud."
+# --- UTILITAIRE JSON ---
+def clean_json_response(text):
+    """Nettoie la réponse de l'IA pour extraire le JSON pur."""
+    text = text.strip()
+    # Enlever les balises markdown ```json ... ```
+    if text.startswith("```"):
+        text = re.sub(r"^```(json)?", "", text)
+        text = re.sub(r"```$", "", text)
+    return text.strip()
 
-        # STRATÉGIE DE SÉLECTION
-        # 1. On cherche "Flash" (Rapide & Gratuit)
-        for m in available_models:
-            if 'flash' in m.lower():
-                return m, None # Trouvé !
-        
-        # 2. Sinon on cherche "Pro" (Puissant)
-        for m in available_models:
-            if 'pro' in m.lower() and 'vision' not in m.lower():
-                return m, None
-        
-        # 3. Sinon n'importe quel Gemini
-        for m in available_models:
-            if 'gemini' in m.lower():
-                return m, None
-
-        # 4. Le premier de la liste
-        return available_models[0], None
-
-    except Exception as e:
-        return None, str(e)
-
-# --- ANALYSE ---
-def analyze_image(image, price, api_key):
+# --- ANALYSE AVANCÉE (JSON) ---
+def analyze_image_pro(image, price, api_key):
     genai.configure(api_key=api_key)
     
-    # Étape 1 : Trouver le BON modèle automatiquement
-    model_name, error_msg = get_real_model()
+    # Modèle robuste avec fallback
+    models = ["gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-pro"]
     
-    if not model_name:
-        return f"ERREUR_DETAIL: {error_msg}", "Aucun"
-
-    # Étape 2 : Le Prompt
+    # Prompt structuré pour forcer le format JSON riche
     prompt = f"""
-    Rôle : Expert ameublement à Niamey.
-    Prix : {price} FCFA.
+    Tu es un expert menuisier et tapissier à Niamey. Analyse ce meuble (Prix: {price} FCFA).
     
-    Tâche 1 : Si ce n'est pas un meuble, réponds juste "ERREUR_NON_MEUBLE".
+    Si ce n'est pas un meuble, renvoie un JSON avec {{"is_furniture": false}}.
     
-    Tâche 2 : Analyse (Format strict) :
-    TYPE_PRECIS: [Type]
-    STYLE_DESIGN: [Style]
-    MATIERE_REELLE: [Matière]
-    ETAT_STRUCTURE: [Bon/Moyen/Mauvais]
-    SCORE_CLIMAT_SAHEL: [Note/10]
-    SCORE_GLOBAL: [Note/10]
-    VERDICT_PRIX: [Cher/Correct/Affaire]
-    ANALYSE_VISUELLE: [3 phrases courtes]
-    CONSEIL_NEGOCIATION: [1 phrase]
+    Sinon, renvoie un JSON valide avec exactement cette structure :
+    {{
+        "is_furniture": true,
+        "titre": "Type précis du meuble",
+        "style": "Style identifié",
+        "verdict_prix": "Cher / Correct / Affaire",
+        "score_global": 5,
+        "score_sahel": 5,
+        "composition_materiau": [
+            {{"couche": "1. Surface", "compo": "ex: Cuir PU", "etat": "ex: Craquelé"}},
+            {{"couche": "2. Structure", "compo": "ex: Bois rouge", "etat": "ex: Solide"}}
+        ],
+        "resistance_usure": 3,
+        "avis_menuisier": "Analyse structurelle courte...",
+        "avis_tapissier": "Analyse tissu/mousse courte...",
+        "matrice_decision": [
+            {{"option": "Réparation", "difficulte": "⭐⭐⭐", "cout": "Cher", "resultat": "Moyen"}},
+            {{"option": "Housse", "difficulte": "⭐", "cout": "Faible", "resultat": "Bon"}},
+            {{"option": "Jeter", "difficulte": "⭐", "cout": "Nul", "resultat": "Nul"}}
+        ],
+        "recommandation_finale": "Conseil final court et direct."
+    }}
     """
-
-    # Étape 3 : Tentative
-    try:
-        # print(f"Utilisation du modèle : {model_name}") # Pour les logs
-        model = genai.GenerativeModel(model_name)
-        response = model.generate_content([prompt, image])
-        return response.text, model_name
-
-    except Exception as e:
-        # Gestion erreur 429 (Quota)
-        if "429" in str(e):
-            return "ERREUR_DETAIL: Le modèle est occupé (Quota). Réessayez dans 30s.", model_name
-        return f"ERREUR_DETAIL: {str(e)}", model_name
+    
+    for model_name in models:
+        try:
+            model = genai.GenerativeModel(model_name)
+            # On force la réponse en JSON (mode text pour compatibilité flash, on parse manuellement)
+            response = model.generate_content([prompt, image])
+            return clean_json_response(response.text), model_name
+        except Exception as e:
+            if "429" in str(e): time.sleep(1)
+            continue
+            
+    return None, "Erreur"
 
 # --- INTERFACE ---
-st.title("🇳🇪 MarketScanner")
-st.caption("L'Expert Meuble")
+st.title("🇳🇪 MarketScanner PRO")
+st.caption("L'Expert Meuble : Analyse Technique Complète")
 
 uploaded_file = st.file_uploader("Photo", type=["jpg", "png", "jpeg", "webp"], label_visibility="collapsed")
 
 if not uploaded_file:
-    st.info("👆 Ajoutez une photo pour commencer")
+    st.info("📸 Prenez une photo pour commencer l'audit technique.")
 
-price_input = st.number_input("Prix (FCFA)", min_value=1000, step=500, format="%d")
+price_input = st.number_input("Prix Vendeur (FCFA)", min_value=0, step=500, value=0, format="%d")
 
 if uploaded_file and price_input > 0:
-    if st.button("🔍 SCANNER"):
+    if st.button("🔍 LANCER L'AUDIT TECHNIQUE"):
         if not api_key:
-            st.error("⚠️ Clé manquante")
+            st.error("⚠️ Clé API manquante")
         else:
             image = Image.open(uploaded_file)
             st.image(image, use_container_width=True)
             
-            with st.spinner("🕵️‍♂️ Recherche du modèle et analyse..."):
-                result_text, used_model = analyze_image(image, price_input, api_key)
-
-            if "ERREUR_NON_MEUBLE" in result_text:
-                st.error("🛑 Pas un meuble.")
+            with st.spinner("🧠 Analyse structurelle et matériaux en cours..."):
+                json_str, model_used = analyze_image_pro(image, price_input, api_key)
             
-            elif "ERREUR_DETAIL" in result_text:
-                st.error("Oups ! Souci technique.")
-                st.warning(result_text.replace("ERREUR_DETAIL:", ""))
-                st.caption(f"Modèle tenté : {used_model}")
-                
+            if not json_str:
+                st.error("Erreur technique (IA non disponible). Réessayez.")
             else:
-                # Parsing
-                data = {}
-                for line in result_text.split('\n'):
-                    if ":" in line:
-                        k, v = line.split(':', 1)
-                        data[k.strip()] = v.strip()
-
-                st.success("Terminé !")
-                # st.caption(f"Modèle utilisé : {used_model}") # Debug visible si besoin
-                
-                # Affichage Résultat
-                col_res, col_verdict = st.columns([2,1])
-                with col_res:
-                    st.markdown(f"### {data.get('TYPE_PRECIS', 'Meuble')}")
-                    st.caption(f"Style : {data.get('STYLE_DESIGN', 'Standard')}")
-                with col_verdict:
-                    verdict = data.get('VERDICT_PRIX', 'N/A')
-                    color = "green" if "Affaire" in verdict else "red"
-                    st.markdown(f":{color}[**{verdict}**]")
-
                 try:
-                    score_val = int(data.get('SCORE_GLOBAL', '0').split('/')[0]) / 10
-                except:
-                    score_val = 0
-                st.progress(score_val, text="Note Globale")
-                
-                st.markdown(f"""
-                <div class="metric-card">
-                <b>L'avis de l'expert :</b><br>
-                {data.get('ANALYSE_VISUELLE', 'Pas d\'info')}
-                <hr>
-                💡 {data.get('CONSEIL_NEGOCIATION', '')}
-                </div>
-                """, unsafe_allow_html=True)
+                    data = json.loads(json_str)
+                    
+                    if not data.get("is_furniture"):
+                        st.error("🛑 Ce n'est pas un meuble.")
+                    else:
+                        # --- 1. EN-TÊTE ---
+                        st.success("Analyse terminée !")
+                        
+                        col1, col2 = st.columns([2, 1])
+                        with col1:
+                            st.markdown(f"### {data.get('titre')}")
+                            st.caption(f"Style : {data.get('style')}")
+                        with col2:
+                            v = data.get('verdict_prix', 'N/A')
+                            c = "bg-green" if "Affaire" in v else "bg-orange" if "Correct" in v else "bg-red"
+                            st.markdown(f'<div class="verdict-badge {c}">{v}</div>', unsafe_allow_html=True)
 
-                save_data(data.get("TYPE_PRECIS"), data.get("STYLE_DESIGN"), data.get("MATIERE_REELLE"), price_input, 0, verdict)
+                        # --- 2. IDENTIFICATION MATÉRIAU (Tableau) ---
+                        st.markdown('<div class="tech-card">', unsafe_allow_html=True)
+                        st.markdown('<div class="tech-header">🧬 1. Composition du Matériau</div>', unsafe_allow_html=True)
+                        
+                        # Construction du tableau HTML manuel pour le style
+                        html_table = '<table class="styled-table"><thead><tr><th>Couche</th><th>Composition</th><th>État détecté</th></tr></thead><tbody>'
+                        for row in data.get('composition_materiau', []):
+                            html_table += f"<tr><td><b>{row['couche']}</b></td><td>{row['compo']}</td><td>{row['etat']}</td></tr>"
+                        html_table += "</tbody></table>"
+                        st.markdown(html_table, unsafe_allow_html=True)
+                        st.markdown('</div>', unsafe_allow_html=True)
 
-# Admin zone
-with st.expander("Admin"):
-    if st.checkbox("CSV"):
-        if os.path.exists("data_meubles.csv"):
-            with open("data_meubles.csv", "r") as f:
-                st.download_button("Télécharger", f, "data.csv")
+                        # --- 3. RÉSISTANCE & AUDIT ---
+                        st.markdown('<div class="tech-card">', unsafe_allow_html=True)
+                        st.markdown('<div class="tech-header">📊 2. Résistance & Audit Expert</div>', unsafe_allow_html=True)
+                        
+                        res_score = data.get('resistance_usure', 0)
+                        st.write(f"**Résistance à l'usure : {res_score}/10**")
+                        st.progress(res_score/10)
+                        
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.info(f"🪑 **Menuisier :**\n{data.get('avis_menuisier')}")
+                        with c2:
+                            st.warning(f"🧵 **Tapissier :**\n{data.get('avis_tapissier')}")
+                        st.markdown('</div>', unsafe_allow_html=True)
+
+                        # --- 4. MATRICE DE DÉCISION ---
+                        st.markdown('<div class="tech-card">', unsafe_allow_html=True)
+                        st.markdown('<div class="tech-header">⚖️ 3. Matrice de Décision (Que faire ?)</div>', unsafe_allow_html=True)
+                        
+                        matrix_html = '<table class="styled-table"><thead><tr><th>Option</th><th>Difficulté</th><th>Coût</th><th>Résultat</th></tr></thead><tbody>'
+                        for opt in data.get('matrice_decision', []):
+                            matrix_html += f"<tr><td><b>{opt['option']}</b></td><td>{opt['difficulte']}</td><td>{opt['cout']}</td><td>{opt['resultat']}</td></tr>"
+                        matrix_html += "</tbody></table>"
+                        st.markdown(matrix_html, unsafe_allow_html=True)
+                        st.markdown('</div>', unsafe_allow_html=True)
+
+                        # --- 5. CONCLUSION ---
+                        st.markdown(f"""
+                        <div class="tech-card" style="border-top: 4px solid #10b981;">
+                            <div class="tech-header">💡 Recommandation Finale</div>
+                            <p style="font-size: 1.1em;">{data.get('recommandation_finale')}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Sauvegarde
+                        save_data(data.get('titre'), price_input, data.get('score_global'), data.get('verdict_prix'))
+
+                except json.JSONDecodeError:
+                    st.error("Erreur de lecture des données structurées. L'IA a renvoyé un format invalide.")
+                    st.code(json_str) # Debug
