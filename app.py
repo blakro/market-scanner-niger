@@ -16,59 +16,62 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS PRO (Design "Carte") ---
+# --- CSS DESIGN "LUMIÈRE & ÉPURÉ" AVEC EXO 2 ---
 st.markdown("""
     <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    
-    /* Importation Police Moderne */
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap');
+    /* Importation Police Exo 2 (Google Fonts) */
+    @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;600;700;800&display=swap');
 
     /* RESET & BASE */
     * {
-        font-family: 'Poppins', sans-serif !important;
+        font-family: 'Exo 2', sans-serif !important;
+        color: #1f2937;
     }
 
-    /* ARRIÈRE-PLAN VIBRANT (Gradient "Terre & Ciel du Niger") */
+    /* ARRIÈRE-PLAN CLAIR (Style "Clean App") */
     .stApp {
-        background: linear-gradient(135deg, #fcd34d 0%, #ea580c 50%, #7c2d12 100%);
-        background-size: 400% 400%;
-        animation: gradient 20s ease infinite;
-    }
-    @keyframes gradient {
-        0% {background-position: 0% 50%;}
-        50% {background-position: 100% 50%;}
-        100% {background-position: 0% 50%;}
+        background-color: #fafafa; /* Blanc cassé très doux */
+        background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+        background-size: 20px 20px; /* Petit motif discret */
     }
     
-    /* Cartes blanches avec effet verre */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* CARTE RÉSULTAT (Style Minimaliste) */
     .tech-card {
-        background: rgba(255, 255, 255, 0.92);
-        backdrop-filter: blur(12px);
-        padding: 20px;
+        background: white;
+        padding: 25px;
         border-radius: 16px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        margin-bottom: 15px;
-        border-top: 4px solid #ea580c;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05); /* Ombre très douce */
+        margin-bottom: 20px;
+        border: 1px solid #f3f4f6;
     }
     
-    /* Titres de section */
+    /* TITRES */
+    h1 {
+        color: #111827 !important;
+        font-weight: 800 !important; /* Extra Bold pour Exo 2 */
+        letter-spacing: -0.5px;
+        text-align: center;
+        margin-bottom: 0 !important;
+        text-transform: uppercase; /* Style plus impactant */
+    }
     .tech-header {
-        background: -webkit-linear-gradient(45deg, #ea580c, #b45309);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: 800;
-        font-size: 1.1em;
+        color: #ea580c; /* Orange Niger */
+        font-weight: 700;
+        font-size: 1em;
         margin-bottom: 15px;
         display: flex;
         align-items: center;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 1px;
+        border-bottom: 2px solid #fff7ed;
+        padding-bottom: 5px;
     }
     
-    /* Tables personnalisées */
+    /* TABLEAUX ÉPURÉS */
     .styled-table {
         width: 100%;
         border-collapse: collapse;
@@ -76,63 +79,88 @@ st.markdown("""
         margin-bottom: 10px;
     }
     .styled-table th {
-        background-color: #fff7ed;
-        color: #9a3412;
-        padding: 8px;
         text-align: left;
-        border-bottom: 2px solid #fed7aa;
+        color: #9ca3af;
+        font-size: 0.85em;
+        text-transform: uppercase;
+        padding: 8px 0;
+        font-weight: 700;
     }
     .styled-table td {
-        padding: 8px;
-        border-bottom: 1px solid #eee;
-        color: #4b5563;
+        padding: 10px 0;
+        border-bottom: 1px solid #f3f4f6;
+        color: #374151;
+        font-weight: 500;
+    }
+    .styled-table tr:last-child td {
+        border-bottom: none;
     }
     
-    /* Badges */
+    /* BADGES MODERNES (Pillules) */
     .verdict-badge {
-        padding: 5px 10px;
-        border-radius: 20px;
+        padding: 6px 12px;
+        border-radius: 100px;
         color: white;
-        font-weight: bold;
-        font-size: 0.9em;
+        font-weight: 700;
+        font-size: 0.85em;
         text-align: center;
         display: inline-block;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
-    .bg-green { background: linear-gradient(135deg, #10b981, #059669); }
-    .bg-orange { background: linear-gradient(135deg, #f59e0b, #d97706); }
-    .bg-red { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+    .bg-green { background-color: #10b981; color: white; }
+    .bg-orange { background-color: #f59e0b; color: white; }
+    .bg-red { background-color: #ef4444; color: white; }
 
-    /* Bouton */
+    /* BOUTON PRINCIPAL (Orange Niger) */
     .stButton > button {
         width: 100%;
-        border-radius: 50px;
-        height: 4em;
-        background: linear-gradient(90deg, #ea580c 0%, #c2410c 100%);
-        color: white;
-        font-weight: 800;
+        border-radius: 12px;
+        height: 3.8em;
+        background-color: #ea580c;
+        color: white !important;
+        font-weight: 700;
         border: none;
         font-size: 1.1em;
-        box-shadow: 0 4px 15px rgba(194, 65, 12, 0.4);
-        transition: transform 0.2s;
+        box-shadow: 0 4px 12px rgba(234, 88, 12, 0.2);
+        transition: all 0.2s ease;
+        text-transform: uppercase;
+        letter-spacing: 1px;
     }
     .stButton > button:hover {
-        transform: scale(1.02);
+        background-color: #c2410c;
+        box-shadow: 0 6px 15px rgba(234, 88, 12, 0.3);
+        transform: translateY(-1px);
     }
 
-    /* Mobile Fixes */
+    /* INPUTS ET ONGLETS */
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: white;
+        border-radius: 12px;
+        padding: 5px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 3rem;
+        border-radius: 8px;
+        font-weight: 600;
+        color: #6b7280;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #fff7ed !important;
+        color: #ea580c !important;
+    }
+    .stNumberInput input {
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        background-color: white;
+        font-weight: 600;
+    }
+
+    /* Mobile Optimisation */
     @media only screen and (max-width: 600px) {
         .main .block-container {
             padding-top: 2rem !important;
-        }
-        h1 { font-size: 1.8rem !important; color: white !important; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        .stTabs [data-baseweb="tab"] {
-            height: 3.5rem;
-            font-weight: 600;
-            background-color: rgba(255,255,255,0.9);
-            border-radius: 12px 12px 0 0;
-            margin-right: 4px;
-            color: #ea580c;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
         }
     }
     </style>
@@ -161,7 +189,6 @@ def save_data(furniture_type, price, score, verdict):
 
 # --- UTILITAIRE JSON ---
 def clean_json_response(text):
-    """Nettoie la réponse de l'IA pour extraire le JSON pur."""
     text = text.strip()
     if text.startswith("```"):
         text = re.sub(r"^```(json)?", "", text)
@@ -194,38 +221,30 @@ def analyze_image_pro(image, price, api_key):
     
     if not model_name: return None, scan_error
     
-    # PROMPT RENFORCÉ : FILTRE STRICT MEUBLES
     prompt = f"""
     Tu es un expert menuisier et tapissier à Niamey. Analyse ce meuble (Prix: {price} FCFA).
-    
-    📍 TÂCHE 1 : VALIDATION DE L'IMAGE (Garde-fou)
-    Regarde attentivement l'image. Est-ce que l'objet PRINCIPAL est un meuble d'ameublement (Table, Armoire, Lit, Canapé, Fauteuil, Commode, Chaise, Buffet) ?
-    
-    ⛔ SI NON (Ex: Voiture, Animal, Humain, Paysage, Bâtiment, Moto) :
-    Renvoie EXACTEMENT : {{ "is_furniture": false }}
-    
-    ✅ SI OUI (C'est bien un meuble) :
-    Renvoie un JSON valide avec cette structure exacte :
+    Si ce n'est pas un meuble, renvoie un JSON avec {{"is_furniture": false}}.
+    Sinon, renvoie un JSON valide :
     {{
         "is_furniture": true,
-        "titre": "Type court (ex: Canapé d'angle, Lit King Size)",
-        "style": "Style identifié (ex: Moderne, Rustique, Import Dubaï)",
+        "titre": "Type court (ex: Canapé d'angle)",
+        "style": "Style identifié",
         "verdict_prix": "Cher / Correct / Affaire",
         "score_global": 5,
         "score_sahel": 5,
         "composition_materiau": [
-            {{"couche": "Surface", "compo": "ex: Simili-cuir", "etat": "ex: Griffé/Pelé"}},
-            {{"couche": "Structure", "compo": "ex: Bois rouge", "etat": "ex: Robuste"}}
+            {{"couche": "Surface", "compo": "ex: Simili", "etat": "ex: Usé"}},
+            {{"couche": "Structure", "compo": "ex: Bois", "etat": "ex: OK"}}
         ],
         "resistance_usure": 3,
-        "avis_menuisier": "Analyse courte de la structure et solidité...",
-        "avis_tapissier": "Analyse courte du tissu/confort/finitions...",
+        "avis_menuisier": "Avis structure...",
+        "avis_tapissier": "Avis tissu...",
         "matrice_decision": [
             {{"option": "Réparer", "difficulte": "Difficile", "cout": "Cher", "resultat": "Moyen"}},
             {{"option": "Housse", "difficulte": "Facile", "cout": "Faible", "resultat": "Bon"}},
             {{"option": "Jeter", "difficulte": "Moyen", "cout": "Nul", "resultat": "Nul"}}
         ],
-        "recommandation_finale": "Conseil final court et direct pour l'acheteur."
+        "recommandation_finale": "Conseil court."
     }}
     """
     
@@ -242,9 +261,9 @@ def analyze_image_pro(image, price, api_key):
             except: return None, "Surcharge serveur"
         return None, str(e)
 
-# --- INTERFACE MOBILE ---
-st.title("🇳🇪 Gaskiyar Kaya")
-st.markdown("<p style='color:white; opacity:0.9; margin-top:-15px; font-weight:400;'>L'Expert Meuble : La vérité sur vos biens</p>", unsafe_allow_html=True)
+# --- INTERFACE MOBILE ÉPURÉE ---
+st.title("Gaskiyar Kaya 🇳🇪")
+st.markdown("<p style='text-align:center; color:#6b7280; margin-top:-10px; margin-bottom:20px; font-weight:500;'>L'Expert Meuble de confiance</p>", unsafe_allow_html=True)
 
 # Onglets stylisés
 tab_cam, tab_upload = st.tabs(["📸 Prendre Photo", "📂 Galerie"])
@@ -261,22 +280,22 @@ with tab_upload:
     if upload_img:
         img_file_buffer = upload_img
 
-# Input Prix
-st.markdown('<div class="tech-card" style="padding:15px; margin-bottom:10px;">', unsafe_allow_html=True)
-st.markdown('<div class="tech-header" style="margin-bottom:5px;">💰 Prix estimé/Vendeur (FCFA)</div>', unsafe_allow_html=True)
-price_input = st.number_input("Prix", min_value=0, step=500, value=0, format="%d", label_visibility="collapsed")
-st.markdown('</div>', unsafe_allow_html=True)
+# Input Prix (Step 50 000)
+st.markdown("<br>", unsafe_allow_html=True)
+st.markdown('<span style="font-weight:700; color:#1f2937">💰 Prix annoncé (FCFA)</span>', unsafe_allow_html=True)
+price_input = st.number_input("Prix", min_value=0, step=50000, value=0, format="%d", label_visibility="collapsed")
 
 # Bouton d'action
-if img_file_buffer:
-    if st.button("🔍 LANCER L'ANALYSE EXPERT"):
+st.markdown("<br>", unsafe_allow_html=True)
+if img_file_buffer and price_input >= 0:
+    if st.button("LANCER L'ANALYSE"):
         if not api_key:
             st.error("⚠️ Clé API manquante")
         else:
             image = Image.open(img_file_buffer)
-            st.image(image, width=150) # Miniature
+            st.image(image, width=120) # Miniature discrète
             
-            with st.spinner("🧠 Gaskiyar Kaya analyse la qualité..."):
+            with st.spinner("🔍 Analyse détaillée en cours..."):
                 json_str, info_msg = analyze_image_pro(image, price_input, api_key)
             
             if not json_str:
@@ -287,27 +306,25 @@ if img_file_buffer:
                     data = json.loads(json_str)
                     
                     if not data.get("is_furniture"):
-                        st.error("🛑 OBJET NON RECONNU")
-                        st.warning("Gaskiyar Kaya analyse uniquement les MEUBLES (Lits, Salons, Tables...).")
+                        st.error("🛑 Pas un meuble reconnu.")
                     else:
-                        st.balloons()
                         
-                        # En-tête
+                        # En-tête Clean
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
                         c1, c2 = st.columns([2,1])
                         with c1:
-                            st.markdown(f"<h3 style='margin:0; color:#1f2937'>{data.get('titre')}</h3>", unsafe_allow_html=True)
-                            st.markdown(f"<i style='color:#6b7280; font-size:0.9em'>{data.get('style')}</i>", unsafe_allow_html=True)
+                            st.markdown(f"<h3 style='margin:0; font-size:1.4em; font-weight:800'>{data.get('titre')}</h3>", unsafe_allow_html=True)
+                            st.markdown(f"<span style='color:#6b7280; font-size:0.9em; font-weight:500'>{data.get('style')}</span>", unsafe_allow_html=True)
                         with c2:
                             v = data.get('verdict_prix', 'N/A')
                             color = "bg-green" if "Affaire" in v else "bg-orange" if "Correct" in v else "bg-red"
-                            st.markdown(f'<div class="verdict-badge {color}">{v}</div>', unsafe_allow_html=True)
+                            st.markdown(f'<div style="text-align:right"><span class="verdict-badge {color}">{v}</span></div>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
 
                         # 1. Matériau
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                        st.markdown('<div class="tech-header">🧬 La Vérité du Matériau</div>', unsafe_allow_html=True)
-                        html_table = '<table class="styled-table"><thead><tr><th>Zone</th><th>Matière Réelle</th><th>État</th></tr></thead><tbody>'
+                        st.markdown('<div class="tech-header">🧬 Composition</div>', unsafe_allow_html=True)
+                        html_table = '<table class="styled-table"><thead><tr><th>Zone</th><th>Matière</th><th>État</th></tr></thead><tbody>'
                         for row in data.get('composition_materiau', []):
                             html_table += f"<tr><td>{row['couche']}</td><td>{row['compo']}</td><td>{row['etat']}</td></tr>"
                         html_table += "</tbody></table>"
@@ -317,15 +334,19 @@ if img_file_buffer:
                         # 2. Avis Experts
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
                         st.markdown('<div class="tech-header">📊 Audit Technique</div>', unsafe_allow_html=True)
-                        st.write(f"**Solidité / Usure : {data.get('resistance_usure')}/10**")
+                        st.write("Note d'usure globale")
                         st.progress(data.get('resistance_usure')/10)
-                        st.info(f"🪑 **Menuisier :** {data.get('avis_menuisier')}")
-                        st.warning(f"🧵 **Tapissier :** {data.get('avis_tapissier')}")
+                        st.markdown(f"""
+                        <div style="margin-top:15px; padding:15px; background:#f9fafb; border-radius:8px; font-size:0.95em; line-height:1.6;">
+                            🪑 <b>Menuisier :</b> {data.get('avis_menuisier')}<br><br>
+                            🧵 <b>Tapissier :</b> {data.get('avis_tapissier')}
+                        </div>
+                        """, unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
 
                         # 3. Décision
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                        st.markdown('<div class="tech-header">⚖️ Vos Options</div>', unsafe_allow_html=True)
+                        st.markdown('<div class="tech-header">⚖️ Scénarios</div>', unsafe_allow_html=True)
                         matrix_html = '<table class="styled-table"><thead><tr><th>Option</th><th>Coût</th><th>Résultat</th></tr></thead><tbody>'
                         for opt in data.get('matrice_decision', []):
                             matrix_html += f"<tr><td><b>{opt['option']}</b></td><td>{opt['cout']}</td><td>{opt['resultat']}</td></tr>"
@@ -335,9 +356,9 @@ if img_file_buffer:
 
                         # 4. Conseil Final
                         st.markdown(f"""
-                        <div class="tech-card" style="border-left: 5px solid #10b981; border-top:none;">
-                            <div class="tech-header" style="color:#10b981">💡 Le Conseil du Gwani</div>
-                            {data.get('recommandation_finale')}
+                        <div class="tech-card" style="background:#ecfdf5; border:1px solid #10b981; border-top:none;">
+                            <div style="color:#047857; font-weight:bold; margin-bottom:5px; text-transform:uppercase; font-size:0.9em;">💡 Le Conseil du Gwani</div>
+                            <p style="color:#065f46; margin:0; font-weight:600;">{data.get('recommandation_finale')}</p>
                         </div>
                         """, unsafe_allow_html=True)
                         
@@ -346,8 +367,10 @@ if img_file_buffer:
                 except json.JSONDecodeError:
                     st.error("Erreur lecture IA.")
 elif not img_file_buffer:
+    # Empty state simple
     st.markdown("""
-    <div style='text-align:center; padding:40px; color:white; opacity:0.8;'>
-        📸<br><b>Prenez une photo</b> pour révéler la vérité sur ce meuble
+    <div style='text-align:center; padding:40px; color:#9ca3af;'>
+        <p style="font-size:3em;">📸</p>
+        <p style="font-weight:600;">Prenez une photo pour commencer</p>
     </div>
     """, unsafe_allow_html=True)
