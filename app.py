@@ -10,7 +10,7 @@ import re
 
 # --- CONFIGURATION ---
 st.set_page_config(
-    page_title="MarketScanner Niger",
+    page_title="Gaskiyar Kaya 🇳🇪",
     page_icon="🛋️",
     layout="centered",
     initial_sidebar_state="collapsed"
@@ -31,11 +31,11 @@ st.markdown("""
         font-family: 'Poppins', sans-serif !important;
     }
 
-    /* ARRIÈRE-PLAN VIBRANT (Gradient Animé Subtil) */
+    /* ARRIÈRE-PLAN VIBRANT (Gradient "Terre & Ciel du Niger") */
     .stApp {
-        background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+        background: linear-gradient(135deg, #fcd34d 0%, #ea580c 50%, #7c2d12 100%);
         background-size: 400% 400%;
-        animation: gradient 15s ease infinite;
+        animation: gradient 20s ease infinite;
     }
     @keyframes gradient {
         0% {background-position: 0% 50%;}
@@ -43,20 +43,20 @@ st.markdown("""
         100% {background-position: 0% 50%;}
     }
     
-    /* Cartes blanches avec ombre */
+    /* Cartes blanches avec effet verre */
     .tech-card {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(12px);
         padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
         margin-bottom: 15px;
-        border-top: 4px solid #d97706;
+        border-top: 4px solid #ea580c;
     }
     
     /* Titres de section */
     .tech-header {
-        background: -webkit-linear-gradient(45deg, #d97706, #e11d48);
+        background: -webkit-linear-gradient(45deg, #ea580c, #b45309);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         font-weight: 800;
@@ -76,11 +76,11 @@ st.markdown("""
         margin-bottom: 10px;
     }
     .styled-table th {
-        background-color: #f3f4f6;
-        color: #374151;
+        background-color: #fff7ed;
+        color: #9a3412;
         padding: 8px;
         text-align: left;
-        border-bottom: 2px solid #e5e7eb;
+        border-bottom: 2px solid #fed7aa;
     }
     .styled-table td {
         padding: 8px;
@@ -108,12 +108,12 @@ st.markdown("""
         width: 100%;
         border-radius: 50px;
         height: 4em;
-        background: linear-gradient(90deg, #d97706 0%, #ea580c 100%);
+        background: linear-gradient(90deg, #ea580c 0%, #c2410c 100%);
         color: white;
         font-weight: 800;
         border: none;
         font-size: 1.1em;
-        box-shadow: 0 4px 10px rgba(217, 119, 6, 0.4);
+        box-shadow: 0 4px 15px rgba(194, 65, 12, 0.4);
         transition: transform 0.2s;
     }
     .stButton > button:hover {
@@ -129,9 +129,10 @@ st.markdown("""
         .stTabs [data-baseweb="tab"] {
             height: 3.5rem;
             font-weight: 600;
-            background-color: rgba(255,255,255,0.8);
-            border-radius: 10px 10px 0 0;
-            margin-right: 2px;
+            background-color: rgba(255,255,255,0.9);
+            border-radius: 12px 12px 0 0;
+            margin-right: 4px;
+            color: #ea580c;
         }
     }
     </style>
@@ -198,14 +199,13 @@ def analyze_image_pro(image, price, api_key):
     Tu es un expert menuisier et tapissier à Niamey. Analyse ce meuble (Prix: {price} FCFA).
     
     📍 TÂCHE 1 : VALIDATION DE L'IMAGE (Garde-fou)
-    Regarde attentivement l'image. Est-ce que l'objet PRINCIPAL est un meuble d'ameublement (Table, Armoire, Lit, Canapé, Fauteuil, Commode, Chaise) ?
+    Regarde attentivement l'image. Est-ce que l'objet PRINCIPAL est un meuble d'ameublement (Table, Armoire, Lit, Canapé, Fauteuil, Commode, Chaise, Buffet) ?
     
-    ⛔ SI NON (Ex: Voiture, Animal, Être humain, Paysage, Électroménager, Vêtement, Accessoire, Bâtiment) :
-    Renvoie EXACTEMENT et UNIQUEMENT ce JSON :
-    {{ "is_furniture": false }}
+    ⛔ SI NON (Ex: Voiture, Animal, Humain, Paysage, Bâtiment, Moto) :
+    Renvoie EXACTEMENT : {{ "is_furniture": false }}
     
     ✅ SI OUI (C'est bien un meuble) :
-    Renvoie un JSON complet et valide avec cette structure exacte :
+    Renvoie un JSON valide avec cette structure exacte :
     {{
         "is_furniture": true,
         "titre": "Type court (ex: Canapé d'angle, Lit King Size)",
@@ -215,7 +215,7 @@ def analyze_image_pro(image, price, api_key):
         "score_sahel": 5,
         "composition_materiau": [
             {{"couche": "Surface", "compo": "ex: Simili-cuir", "etat": "ex: Griffé/Pelé"}},
-            {{"couche": "Structure", "compo": "ex: Bois massif", "etat": "ex: Robuste"}}
+            {{"couche": "Structure", "compo": "ex: Bois rouge", "etat": "ex: Robuste"}}
         ],
         "resistance_usure": 3,
         "avis_menuisier": "Analyse courte de la structure et solidité...",
@@ -243,8 +243,8 @@ def analyze_image_pro(image, price, api_key):
         return None, str(e)
 
 # --- INTERFACE MOBILE ---
-st.title("🇳🇪 MarketScanner")
-st.markdown("<p style='color:white; opacity:0.9; margin-top:-15px; font-weight:300;'>L'Expert Meuble IA dans votre poche</p>", unsafe_allow_html=True)
+st.title("🇳🇪 Gaskiyar Kaya")
+st.markdown("<p style='color:white; opacity:0.9; margin-top:-15px; font-weight:400;'>L'Expert Meuble : La vérité sur vos biens</p>", unsafe_allow_html=True)
 
 # Onglets stylisés
 tab_cam, tab_upload = st.tabs(["📸 Prendre Photo", "📂 Galerie"])
@@ -261,22 +261,22 @@ with tab_upload:
     if upload_img:
         img_file_buffer = upload_img
 
-# Input Prix (avec style carte pour le rendre visible sur fond coloré)
+# Input Prix
 st.markdown('<div class="tech-card" style="padding:15px; margin-bottom:10px;">', unsafe_allow_html=True)
-st.markdown('<div class="tech-header" style="margin-bottom:5px;">💰 Prix annoncé (FCFA)</div>', unsafe_allow_html=True)
+st.markdown('<div class="tech-header" style="margin-bottom:5px;">💰 Prix estimé/Vendeur (FCFA)</div>', unsafe_allow_html=True)
 price_input = st.number_input("Prix", min_value=0, step=500, value=0, format="%d", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # Bouton d'action
-if img_file_buffer and price_input > 0:
-    if st.button("🔍 SCANNER LE MEUBLE"):
+if img_file_buffer:
+    if st.button("🔍 LANCER L'ANALYSE EXPERT"):
         if not api_key:
             st.error("⚠️ Clé API manquante")
         else:
             image = Image.open(img_file_buffer)
             st.image(image, width=150) # Miniature
             
-            with st.spinner("🔮 Analyse Futuriste en cours..."):
+            with st.spinner("🧠 Gaskiyar Kaya analyse la qualité..."):
                 json_str, info_msg = analyze_image_pro(image, price_input, api_key)
             
             if not json_str:
@@ -288,11 +288,11 @@ if img_file_buffer and price_input > 0:
                     
                     if not data.get("is_furniture"):
                         st.error("🛑 OBJET NON RECONNU")
-                        st.warning("Cette application ne scanne que les MEUBLES (Tables, Lits, Salons, Armoires...). Merci de réessayer.")
+                        st.warning("Gaskiyar Kaya analyse uniquement les MEUBLES (Lits, Salons, Tables...).")
                     else:
-                        st.balloons() # Petite fête si ça marche !
+                        st.balloons()
                         
-                        # En-tête dans une carte Glassmorphism
+                        # En-tête
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
                         c1, c2 = st.columns([2,1])
                         with c1:
@@ -306,8 +306,8 @@ if img_file_buffer and price_input > 0:
 
                         # 1. Matériau
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                        st.markdown('<div class="tech-header">🧬 Matériau</div>', unsafe_allow_html=True)
-                        html_table = '<table class="styled-table"><thead><tr><th>Zone</th><th>Matière</th><th>État</th></tr></thead><tbody>'
+                        st.markdown('<div class="tech-header">🧬 La Vérité du Matériau</div>', unsafe_allow_html=True)
+                        html_table = '<table class="styled-table"><thead><tr><th>Zone</th><th>Matière Réelle</th><th>État</th></tr></thead><tbody>'
                         for row in data.get('composition_materiau', []):
                             html_table += f"<tr><td>{row['couche']}</td><td>{row['compo']}</td><td>{row['etat']}</td></tr>"
                         html_table += "</tbody></table>"
@@ -316,16 +316,16 @@ if img_file_buffer and price_input > 0:
 
                         # 2. Avis Experts
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                        st.markdown('<div class="tech-header">📊 Audit Expert</div>', unsafe_allow_html=True)
-                        st.write(f"**Usure : {data.get('resistance_usure')}/10**")
+                        st.markdown('<div class="tech-header">📊 Audit Technique</div>', unsafe_allow_html=True)
+                        st.write(f"**Solidité / Usure : {data.get('resistance_usure')}/10**")
                         st.progress(data.get('resistance_usure')/10)
-                        st.info(f"🪑 {data.get('avis_menuisier')}")
-                        st.warning(f"🧵 {data.get('avis_tapissier')}")
+                        st.info(f"🪑 **Menuisier :** {data.get('avis_menuisier')}")
+                        st.warning(f"🧵 **Tapissier :** {data.get('avis_tapissier')}")
                         st.markdown('</div>', unsafe_allow_html=True)
 
                         # 3. Décision
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                        st.markdown('<div class="tech-header">⚖️ Options</div>', unsafe_allow_html=True)
+                        st.markdown('<div class="tech-header">⚖️ Vos Options</div>', unsafe_allow_html=True)
                         matrix_html = '<table class="styled-table"><thead><tr><th>Option</th><th>Coût</th><th>Résultat</th></tr></thead><tbody>'
                         for opt in data.get('matrice_decision', []):
                             matrix_html += f"<tr><td><b>{opt['option']}</b></td><td>{opt['cout']}</td><td>{opt['resultat']}</td></tr>"
@@ -336,7 +336,7 @@ if img_file_buffer and price_input > 0:
                         # 4. Conseil Final
                         st.markdown(f"""
                         <div class="tech-card" style="border-left: 5px solid #10b981; border-top:none;">
-                            <div class="tech-header" style="color:#10b981">💡 Conseil Pro</div>
+                            <div class="tech-header" style="color:#10b981">💡 Le Conseil du Gwani</div>
                             {data.get('recommandation_finale')}
                         </div>
                         """, unsafe_allow_html=True)
@@ -346,9 +346,8 @@ if img_file_buffer and price_input > 0:
                 except json.JSONDecodeError:
                     st.error("Erreur lecture IA.")
 elif not img_file_buffer:
-    # Petit message stylé si rien n'est chargé
     st.markdown("""
     <div style='text-align:center; padding:40px; color:white; opacity:0.8;'>
-        📸<br><b>Prenez une photo</b> pour révéler les secrets de ce meuble
+        📸<br><b>Prenez une photo</b> pour révéler la vérité sur ce meuble
     </div>
     """, unsafe_allow_html=True)
