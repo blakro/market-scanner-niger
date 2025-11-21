@@ -130,19 +130,48 @@ def clean_json_response(text):
         text = re.sub(r"```$", "", text)
     return text.strip()
 
-# --- ANALYSE ROBUSTE (LISTE PRIORITAIRE) ---
-def analyze_image_pro_robust(image, price, api_key):
+# --- CERVEAU INTELLIGENT (SCANNER AUTO) ---
+def find_best_model_dynamic():
+    """Demande à Google la liste RÉELLE des modèles et choisit le meilleur."""
+    try:
+        available_models = []
+        # On récupère la liste officielle pour CETTE clé
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
+        
+        if not available_models:
+            return None, "Aucun modèle trouvé. Activez l'API 'Generative AI' dans Google Cloud Console."
+
+        # Stratégie de choix :
+        # 1. Chercher "Flash" (Rapide)
+        for m in available_models:
+            if 'flash' in m.lower(): return m, None
+            
+        # 2. Chercher "Pro" (Puissant)
+        for m in available_models:
+            if 'pro' in m.lower() and 'vision' not in m.lower(): return m, None
+            
+        # 3. N'importe quel Gemini
+        for m in available_models:
+            if 'gemini' in m.lower(): return m, None
+            
+        # 4. Le premier de la liste
+        return available_models[0], None
+
+    except Exception as e:
+        # Si même le scan échoue, on tente le nom le plus standard
+        return "models/gemini-1.5-flash", f"Erreur scan: {str(e)}"
+
+# --- ANALYSE PRO HYBRIDE ---
+def analyze_image_pro(image, price, api_key):
     genai.configure(api_key=api_key)
     
-    # LISTE D'ORDRE DE BATAILLE (Noms exacts des versions)
-    # On teste ces modèles l'un après l'autre.
-    models_priority = [
-        "gemini-1.5-flash-002",      # Le plus récent (souvent le plus stable)
-        "gemini-1.5-flash-001",      # La version précédente très stable
-        "gemini-1.5-flash",          # L'alias générique
-        "gemini-1.5-pro-002",        # Pro récent
-        "gemini-1.5-pro-001"         # Pro stable
-    ]
+    # 1. On trouve le BON modèle dynamiquement
+    model_name, scan_error = find_best_model_dynamic()
+    
+    if not model_name:
+        return None, scan_error
     
     prompt = f"""
     Tu es un expert menuisier et tapissier à Niamey. Analyse ce meuble (Prix: {price} FCFA).
@@ -173,27 +202,22 @@ def analyze_image_pro_robust(image, price, api_key):
     }}
     """
     
-    last_error = ""
+    try:
+        model = genai.GenerativeModel(model_name)
+        response = model.generate_content([prompt, image])
+        return clean_json_response(response.text), model_name
 
-    # LA BOUCLE DE TENTATIVE
-    for model_name in models_priority:
-        try:
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content([prompt, image])
-            
-            # Si on arrive ici, c'est que le modèle a répondu !
-            json_result = clean_json_response(response.text)
-            return json_result, model_name
-
-        except Exception as e:
-            last_error = str(e)
-            # Si c'est une erreur de quota (429), on attend un peu avant le prochain modèle
-            if "429" in last_error:
-                time.sleep(1)
-            continue # On passe au modèle suivant dans la liste
-            
-    # Si on sort de la boucle, c'est que TOUT a échoué
-    return None, last_error
+    except Exception as e:
+        # Si l'appel échoue (ex: Quota 429), on attend et on réessaie une fois
+        if "429" in str(e):
+            time.sleep(2)
+            try:
+                response = model.generate_content([prompt, image])
+                return clean_json_response(response.text), model_name
+            except:
+                return None, f"Serveur surchargé (429) sur {model_name}"
+        
+        return None, f"Erreur sur {model_name}: {str(e)}"
 
 # --- INTERFACE ---
 st.title("🇳🇪 MarketScanner PRO")
@@ -214,14 +238,12 @@ if uploaded_file and price_input > 0:
             image = Image.open(uploaded_file)
             st.image(image, use_container_width=True)
             
-            with st.spinner("🧠 Audit multi-modèles en cours..."):
-                # Appel de la fonction robuste
-                json_str, model_used = analyze_image_pro_robust(image, price_input, api_key)
+            with st.spinner("🧠 Identification du modèle IA et analyse..."):
+                json_str, info_msg = analyze_image_pro(image, price_input, api_key)
             
             if not json_str:
                 st.error("❌ Erreur technique persistante.")
-                st.warning("Impossible de joindre l'IA. Détail technique ci-dessous :")
-                st.code(model_used) # Affiche la dernière erreur
+                st.caption(f"Détail : {info_msg}")
             else:
                 try:
                     data = json.loads(json_str)
@@ -231,7 +253,7 @@ if uploaded_file and price_input > 0:
                     else:
                         # --- 1. EN-TÊTE ---
                         st.success("Analyse terminée !")
-                        # st.caption(f"Modèle utilisé : {model_used}") # Debug
+                        # st.caption(f"IA utilisée : {info_msg}") # Debug invisible
                         
                         col1, col2 = st.columns([2, 1])
                         with col1:
