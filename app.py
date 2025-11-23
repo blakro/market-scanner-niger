@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS DESIGN "LUMIÈRE & ÉPURÉ" CORRIGÉ ---
+# --- CSS DESIGN "LUMIÈRE & ÉPURÉ" AVEC EXO 2 ---
 st.markdown("""
     <style>
     /* Importation Police Exo 2 */
@@ -28,7 +28,6 @@ st.markdown("""
         color: #1f2937;
     }
     
-    /* On force la police sur les éléments textuels spécifiques pour être sûr */
     h1, h2, h3, p, span, div, button, input, label {
         font-family: 'Exo 2', sans-serif;
     }
@@ -202,7 +201,7 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(234, 88, 12, 0.2);
     }
     
-    /* CORRECTION BOUTON CAMÉRA (Orange et Lisible) */
+    /* CORRECTION BOUTON CAMÉRA */
     button[kind="primary"] {
         background-color: #ea580c !important;
         border: none !important;
@@ -219,7 +218,7 @@ st.markdown("""
             padding-top: 2rem !important;
             padding-left: 1rem !important;
             padding-right: 1rem !important;
-            padding-bottom: 150px !important; /* Espace en bas pour éviter le chevauchement */
+            padding-bottom: 150px !important;
         }
         h1 {
             font-size: 1.6rem !important;
@@ -290,11 +289,15 @@ def analyze_image_pro(image, price, api_key):
     
     prompt = f"""
     Tu es un expert menuisier à Niamey. Analyse ce meuble (Prix: {price} FCFA).
-    Si ce n'est pas un meuble, renvoie {{"is_furniture": false}}.
+    
+    Liste des objets acceptés : Canapé, fauteuil, table basse, meuble TV, lit, armoire, commode, chevet, table à manger, chaise, buffet, bureau, bibliothèque, console, meuble à chaussures, dressing, lit superposé, canapé-lit, banquette, table de cuisine, tabouret, meuble sous-vasque.
+    
+    Si l'objet n'est PAS un meuble de cette liste (ou similaire), renvoie {{"is_furniture": false}}.
+    
     Sinon, renvoie un JSON valide :
     {{
         "is_furniture": true,
-        "titre": "Type court",
+        "titre": "Type précis (ex: Table de chevet)",
         "style": "Style identifié",
         "verdict_prix": "Cher / Correct / Affaire",
         "scores": {{
@@ -304,14 +307,14 @@ def analyze_image_pro(image, price, api_key):
             "global": 70
         }},
         "composition_materiau": [
-            {{"couche": "Surface", "compo": "ex: Cuir", "etat": "ex: Bon"}},
-            {{"couche": "Structure", "compo": "ex: Bois", "etat": "ex: OK"}}
+            {{"couche": "Matière Principale", "compo": "ex: Bois massif", "etat": "ex: Bon"}},
+            {{"couche": "Finition/Tissu", "compo": "ex: Vernis", "etat": "ex: Rayé"}}
         ],
         "avis_menuisier": "Avis structure...",
-        "avis_tapissier": "Avis tissu...",
+        "avis_tapissier": "Avis finition...",
         "scenarios": [
             {{"titre": "Réparer", "icone": "🛠️", "cout": "Cher", "resultat": "Moyen"}},
-            {{"titre": "Housse", "icone": "🛋️", "cout": "Faible", "resultat": "Bon"}},
+            {{"titre": "Housse/Vernis", "icone": "✨", "cout": "Faible", "resultat": "Bon"}},
             {{"titre": "Négocier", "icone": "🤝", "cout": "0", "resultat": "Top"}}
         ],
         "recommandation_finale": "Conseil court."
@@ -353,8 +356,22 @@ st.markdown("<br>", unsafe_allow_html=True)
 st.markdown('<span style="font-weight:700; color:#1f2937">💰 Prix annoncé (FCFA)</span>', unsafe_allow_html=True)
 price_input = st.number_input("Prix", min_value=0, step=50000, value=0, format="%d", label_visibility="collapsed")
 
+# --- LOGIQUE DE BLOCAGE SI PRIX NUL ---
+is_ready = False
+error_msg = ""
+
+if img_file_buffer:
+    if price_input > 0:
+        is_ready = True
+    else:
+        error_msg = "⚠️ Veuillez entrer le prix du meuble pour lancer l'analyse."
+else:
+    error_msg = ""
+
 st.markdown("<br>", unsafe_allow_html=True)
-if img_file_buffer and price_input >= 0:
+
+# Affichage du bouton ou de l'erreur
+if is_ready:
     if st.button("LANCER L'ANALYSE"):
         if not api_key:
             st.error("⚠️ Clé API manquante")
@@ -373,6 +390,7 @@ if img_file_buffer and price_input >= 0:
                     data = json.loads(json_str)
                     if not data.get("is_furniture"):
                         st.error("🛑 Pas un meuble reconnu.")
+                        st.caption("Objets acceptés : Tables, Lits, Canapés, Armoires, Fauteuils...")
                     else:
                         # EN-TÊTE
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
@@ -468,10 +486,13 @@ if img_file_buffer and price_input >= 0:
                         </div>
                         """, unsafe_allow_html=True)
                         
+                        # === SAUVEGARDE SILENCIEUSE ===
                         save_data_silent(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
 
                 except json.JSONDecodeError:
                     st.error("Erreur lecture IA.")
+elif error_msg:
+    st.warning(error_msg)
 elif not img_file_buffer:
     st.markdown("""
     <div style='text-align:center; padding:40px; color:#9ca3af;'>
@@ -480,16 +501,32 @@ elif not img_file_buffer:
     </div>
     """, unsafe_allow_html=True)
 
-# --- ZONE ADMIN SECRÈTE ---
+# --- ZONE ADMIN SÉCURISÉE ---
 st.markdown("<br><br><br>", unsafe_allow_html=True)
-with st.expander("🔐 Admin Data"):
-    if os.path.exists("data_meubles.csv"):
-        with open("data_meubles.csv", "r", encoding="utf-8") as f:
-            st.download_button(
-                label="📥 Télécharger les données (CSV)",
-                data=f,
-                file_name="gaskiyar_kaya_data.csv",
-                mime="text/csv"
-            )
-    else:
-        st.info("Aucune donnée.")
+
+with st.expander("🔐 Espace Admin"):
+    password = st.text_input("Mot de passe administrateur", type="password")
+    
+    if password == "Niamey2024": 
+        st.success("Accès autorisé ✅")
+        
+        if os.path.exists("data_meubles.csv"):
+            try:
+                with open("data_meubles.csv", "r", encoding="utf-8") as f:
+                    stats_lines = len(f.readlines()) - 1
+                st.caption(f"📊 Total analyses récoltées : {stats_lines}")
+                
+                with open("data_meubles.csv", "r", encoding="utf-8") as f:
+                    st.download_button(
+                        label="📥 Télécharger le fichier CSV complet",
+                        data=f,
+                        file_name="gaskiyar_kaya_data.csv",
+                        mime="text/csv"
+                    )
+            except Exception:
+                st.error("Erreur de lecture du fichier.")
+        else:
+            st.info("La base de données est vide pour le moment.")
+            
+    elif password:
+        st.error("Mot de passe incorrect ⛔")
