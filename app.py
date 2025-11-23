@@ -507,7 +507,7 @@ st.markdown("<br><br><br>", unsafe_allow_html=True)
 with st.expander("🔐 Espace Admin"):
     password = st.text_input("Mot de passe administrateur", type="password")
     
-    if password == "Niamey2024": 
+    if password == "Boka2025": 
         st.success("Accès autorisé ✅")
         
         if os.path.exists("data_meubles.csv"):
@@ -530,3 +530,4 @@ with st.expander("🔐 Espace Admin"):
             
     elif password:
         st.error("Mot de passe incorrect ⛔")
+
