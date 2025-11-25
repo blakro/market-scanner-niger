@@ -18,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS DESIGN "LUMIÈRE & ÉPURÉ" (CORRECTIF CONTRASTE TOTAL) ---
+# --- CSS DESIGN "LUMIÈRE & ÉPURÉ" (OPTIMISÉ ESPACE) ---
 st.markdown("""
     <style>
     /* Importation Police Exo 2 */
@@ -34,67 +34,66 @@ st.markdown("""
         color: #1f2937 !important; 
     }
     
-    /* 3. CORRECTION CRITIQUE INPUTS (PRIX INVISIBLE) */
-    /* Force le fond blanc et texte noir pour le champ Prix, même en Dark Mode */
+    /* 3. CORRECTION INPUTS (PRIX) */
     .stNumberInput input {
         background-color: #ffffff !important;
         color: #000000 !important; 
-        -webkit-text-fill-color: #000000 !important; /* Pour Safari/iOS */
+        -webkit-text-fill-color: #000000 !important;
         border: 1px solid #d1d5db !important;
-        caret-color: #ea580c !important; /* Curseur orange */
+        caret-color: #ea580c !important;
         font-weight: 700 !important;
     }
-    
-    /* Boutons + et - du NumberInput */
     .stNumberInput button {
         background-color: #f3f4f6 !important;
         color: #1f2937 !important;
     }
 
-    /* 4. CORRECTION ONGLETS (PRENDRE PHOTO / GALERIE) */
+    /* 4. CORRECTION ONGLETS */
     .stTabs [data-baseweb="tab-list"] {
         background-color: white;
         border-radius: 12px;
-        padding: 5px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+        padding: 2px; /* Moins de padding */
+        box-shadow: 0 2px 5px rgba(0,0,0,0.02);
         border: 1px solid #e5e7eb;
+        margin-bottom: 10px;
     }
     .stTabs [data-baseweb="tab"] {
-        height: 3rem;
+        height: 2.5rem; /* Onglets moins hauts */
         border-radius: 8px;
         font-weight: 600;
-        color: #6b7280 !important; /* Gris par défaut */
+        color: #6b7280 !important;
         background-color: transparent !important;
+        padding-top: 0;
+        padding-bottom: 0;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #fff7ed !important; /* Fond Orange clair */
-        color: #ea580c !important; /* Texte Orange */
+        background-color: #fff7ed !important;
+        color: #ea580c !important;
     }
 
-    /* 5. CORRECTION UPLOAD (ILLISIBLE) */
-    /* Zone de drag & drop */
+    /* 5. CORRECTION UPLOAD */
     div[data-testid="stFileUploader"] {
-        background-color: #f9fafb; /* Fond gris très clair */
+        background-color: #f9fafb;
         border: 1px dashed #d1d5db;
         border-radius: 10px;
-        padding: 20px;
+        padding: 10px; /* Moins de padding */
     }
-    /* Le texte "Drag and drop..." */
     div[data-testid="stFileUploader"] section > div {
         color: #4b5563 !important; 
+        padding-top: 10px;
+        padding-bottom: 10px;
     }
-    /* Le petit bouton "Browse files" */
     div[data-testid="stFileUploader"] button {
         background-color: white !important;
         color: #1f2937 !important;
         border: 1px solid #d1d5db !important;
     }
 
-    /* Exception : Boutons d'action principaux et Badges (Texte Blanc) */
+    /* EXCEPTIONS TEXTE BLANC */
     .stButton > button, .verdict-badge, div[data-testid="stCameraInput"] button {
         color: white !important;
     }
-    /* Exception : Captions (Gris) */
+    /* EXCEPTIONS GRIS */
     .stCaption, div[data-testid="stCaptionContainer"] p {
         color: #6b7280 !important;
     }
@@ -113,10 +112,10 @@ st.markdown("""
     /* CARTE RÉSULTAT */
     .tech-card {
         background: white;
-        padding: 20px;
+        padding: 15px; /* Padding réduit */
         border-radius: 16px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+        margin-bottom: 15px;
         border: 1px solid #f3f4f6;
     }
     
@@ -125,13 +124,15 @@ st.markdown("""
         font-weight: 800 !important;
         text-align: center;
         text-transform: uppercase;
-        font-size: 1.8rem !important;
+        font-size: 1.5rem !important; /* Titre plus petit */
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
     }
     .tech-header {
         color: #ea580c !important;
         font-weight: 700;
-        font-size: 1em;
-        margin-bottom: 15px;
+        font-size: 0.95em;
+        margin-bottom: 10px;
         display: flex;
         align-items: center;
         text-transform: uppercase;
@@ -144,11 +145,11 @@ st.markdown("""
     .score-circle-container {
         display: flex;
         justify-content: center;
-        margin: 20px 0;
+        margin: 10px 0;
     }
     .score-circle {
-        width: 120px;
-        height: 120px;
+        width: 100px; /* Cercle plus petit */
+        height: 100px;
         border-radius: 50%;
         background: conic-gradient(#ea580c var(--percent), #f3f4f6 0);
         display: flex;
@@ -158,15 +159,15 @@ st.markdown("""
     }
     .score-circle::before {
         content: "";
-        width: 100px;
-        height: 100px;
+        width: 85px;
+        height: 85px;
         background: white;
         border-radius: 50%;
         position: absolute;
     }
     .score-value {
         position: relative;
-        font-size: 1.8em;
+        font-size: 1.5em;
         font-weight: 800;
         color: #ea580c !important;
     }
@@ -174,7 +175,7 @@ st.markdown("""
         position: relative;
         display: block;
         text-align: center;
-        font-size: 0.7em;
+        font-size: 0.6em;
         color: #6b7280 !important;
         font-weight: 600;
         margin-top: -5px;
@@ -182,72 +183,72 @@ st.markdown("""
 
     /* JAUGES */
     .gauge-container {
-        margin-bottom: 12px;
+        margin-bottom: 8px;
     }
     .gauge-label {
         display: flex;
         justify-content: space-between;
-        font-size: 0.85em;
+        font-size: 0.8em;
         font-weight: 600;
-        margin-bottom: 4px;
+        margin-bottom: 2px;
     }
     .gauge-bg {
-        height: 10px;
+        height: 8px;
         background: #f3f4f6;
-        border-radius: 5px;
+        border-radius: 4px;
         overflow: hidden;
     }
     .gauge-fill {
         height: 100%;
         background: linear-gradient(90deg, #fcd34d, #ea580c);
-        border-radius: 5px;
+        border-radius: 4px;
     }
 
     /* CARTES SCENARIOS */
     .scenario-card {
         background: #f9fafb;
         border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        padding: 10px;
+        border-radius: 10px;
+        padding: 8px;
         text-align: center;
         height: 100%;
     }
     .scenario-title {
         font-weight: 800;
         color: #374151 !important;
-        margin-bottom: 5px;
+        margin-bottom: 3px;
         text-transform: uppercase;
-        font-size: 0.8em;
+        font-size: 0.75em;
     }
     .scenario-cost {
-        font-size: 0.75em;
+        font-size: 0.7em;
         color: #6b7280 !important;
-        margin-bottom: 5px;
+        margin-bottom: 3px;
     }
     .scenario-result {
         font-weight: 700;
         color: #ea580c !important;
-        font-size: 0.9em;
+        font-size: 0.85em;
     }
 
     /* TABLEAUX */
     .styled-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.9em;
+        font-size: 0.85em;
     }
     .styled-table td {
-        padding: 10px 0;
+        padding: 8px 0;
         border-bottom: 1px solid #f3f4f6;
         color: #1f2937 !important;
     }
 
     /* BADGES */
     .verdict-badge {
-        padding: 6px 12px;
+        padding: 4px 10px;
         border-radius: 100px;
         font-weight: 700;
-        font-size: 0.85em;
+        font-size: 0.8em;
     }
     .bg-green { background-color: #10b981; }
     .bg-orange { background-color: #f59e0b; }
@@ -257,7 +258,7 @@ st.markdown("""
     .stButton > button {
         width: 100%;
         border-radius: 12px;
-        height: 3.8em;
+        height: 3.5em;
         background-color: #ea580c;
         color: white !important;
         font-weight: 700;
@@ -265,6 +266,7 @@ st.markdown("""
         font-size: 1.1em;
         text-transform: uppercase;
         box-shadow: 0 4px 12px rgba(234, 88, 12, 0.2);
+        margin-top: 0px; /* Réduit espace au dessus bouton */
     }
     
     /* CORRECTION BOUTON CAMÉRA (Orange et Lisible) */
@@ -276,16 +278,25 @@ st.markdown("""
         border: 2px solid white !important;
     }
 
-    /* MOBILE OPTIMISATION */
+    /* === OPTIMISATION MOBILE CRITIQUE === */
     @media only screen and (max-width: 600px) {
         .main .block-container {
-            padding-top: 2rem !important;
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
-            padding-bottom: 150px !important;
+            /* On remonte tout au maximum vers le haut */
+            padding-top: 1rem !important; 
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+            padding-bottom: 100px !important;
         }
         h1 {
-            font-size: 1.6rem !important;
+            font-size: 1.4rem !important;
+            margin-bottom: 0.2rem !important;
+        }
+        .stCaption {
+            margin-bottom: 0.5rem !important;
+        }
+        /* Réduire les espaces verticaux entre les blocs */
+        div[data-testid="stVerticalBlock"] > div {
+            gap: 0.5rem !important;
         }
     }
     </style>
@@ -300,14 +311,10 @@ if not api_key:
     with st.expander("🔐 Configuration"):
         api_key = st.text_input("Clé API", type="password")
 
-# --- SAUVEGARDE VERS GOOGLE SHEETS (DATA COLLECTION) ---
+# --- SAUVEGARDE VERS GOOGLE SHEETS ---
 def save_data_to_sheets(furniture_type, price, score, verdict):
-    """Envoie les données vers Google Sheets."""
     try:
-        # 1. Connexion
         conn = st.connection("gsheets", type=GSheetsConnection)
-        
-        # 2. Préparation de la nouvelle ligne
         new_data = pd.DataFrame([{
             "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "Type_Meuble": furniture_type,
@@ -315,26 +322,16 @@ def save_data_to_sheets(furniture_type, price, score, verdict):
             "Score_Global": score,
             "Verdict_IA": verdict
         }])
-        
-        # 3. Lecture et Mise à jour (AVEC FIX CACHE TTL=0)
         try:
-            # ttl=0 force le rechargement complet des données depuis Google
-            # pour éviter d'écraser les nouvelles lignes avec une version en cache
             existing_data = conn.read(worksheet="Sheet1", ttl=0)
-            
             if existing_data.empty:
                  updated_data = new_data
             else:
                  updated_data = pd.concat([existing_data, new_data], ignore_index=True)
         except:
             updated_data = new_data
-            
-        # 4. Envoi
         conn.update(worksheet="Sheet1", data=updated_data)
-        
     except Exception:
-        # Silencieux pour l'utilisateur, les données sont perdues si la connexion échoue
-        # C'est le compromis pour la fluidité.
         pass
 
 # --- UTILITAIRE JSON ---
@@ -352,9 +349,7 @@ def find_best_model_dynamic():
         for m in genai.list_models():
             if 'generateContent' in m.supported_generation_methods:
                 available_models.append(m.name)
-        
         if not available_models: return None, "Aucun modèle trouvé."
-
         for m in available_models:
             if 'flash' in m.lower(): return m, None
         for m in available_models:
@@ -367,28 +362,19 @@ def find_best_model_dynamic():
 def analyze_image_pro(image, price, api_key):
     genai.configure(api_key=api_key)
     model_name, scan_error = find_best_model_dynamic()
-    
     if not model_name: return None, scan_error
     
     prompt = f"""
     Tu es un expert menuisier à Niamey. Analyse ce meuble (Prix: {price} FCFA).
-    
     Liste des objets acceptés : Canapé, fauteuil, table basse, meuble TV, lit, armoire, commode, chevet, table à manger, chaise, buffet, bureau, bibliothèque, console, meuble à chaussures, dressing, lit superposé, canapé-lit, banquette, table de cuisine, tabouret, meuble sous-vasque.
-    
-    Si l'objet n'est PAS un meuble de cette liste (ou similaire), renvoie {{"is_furniture": false}}.
-    
+    Si l'objet n'est PAS un meuble de cette liste, renvoie {{"is_furniture": false}}.
     Sinon, renvoie un JSON valide :
     {{
         "is_furniture": true,
-        "titre": "Type précis (ex: Table de chevet)",
+        "titre": "Type précis",
         "style": "Style identifié",
         "verdict_prix": "Cher / Correct / Affaire",
-        "scores": {{
-            "solidite": 75,
-            "materiaux": 60,
-            "restauration": 90,
-            "global": 70
-        }},
+        "scores": {{ "solidite": 75, "materiaux": 60, "restauration": 90, "global": 70 }},
         "composition_materiau": [
             {{"couche": "Matière Principale", "compo": "ex: Bois massif", "etat": "ex: Bon"}},
             {{"couche": "Finition/Tissu", "compo": "ex: Vernis", "etat": "ex: Rayé"}}
@@ -404,7 +390,6 @@ def analyze_image_pro(image, price, api_key):
     }}
     NOTE: Les scores sont sur 100.
     """
-    
     try:
         model = genai.GenerativeModel(model_name)
         response = model.generate_content([prompt, image])
@@ -418,29 +403,35 @@ def analyze_image_pro(image, price, api_key):
             except: return None, "Surcharge serveur"
         return None, str(e)
 
-# --- INTERFACE ---
+# --- INTERFACE COMPACTE ---
 st.title("Gaskiyar Kaya 🇳🇪")
-st.markdown("<p style='text-align:center; color:#6b7280 !important; margin-top:-10px; margin-bottom:20px; font-weight:500;'>L'Expert Meuble de confiance</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#6b7280 !important; font-size:0.9em; margin-top:-5px; margin-bottom:10px;'>L'Expert Meuble de confiance</p>", unsafe_allow_html=True)
 
-st.info("📸 **Astuce :** Une seule photo bien cadrée suffit. Formats acceptés : JPG, PNG, WEBP (Max 200Mo)", icon="ℹ️")
+# Petite info compacte
+st.info("📸 Une seule photo bien cadrée suffit.", icon="ℹ️")
 
-tab_cam, tab_upload = st.tabs(["📸 Prendre Photo", "📂 Galerie"])
+# Onglets compacts
+tab_cam, tab_upload = st.tabs(["📸 Caméra", "📂 Galerie"])
 img_file_buffer = None
 
 with tab_cam:
-    camera_img = st.camera_input("Cadrez le meuble", label_visibility="collapsed")
+    camera_img = st.camera_input("Photo", label_visibility="collapsed")
     if camera_img: img_file_buffer = camera_img
 
 with tab_upload:
-    upload_img = st.file_uploader("Choisir une image", type=["jpg", "png", "jpeg", "webp"], label_visibility="collapsed")
+    upload_img = st.file_uploader("Image", type=["jpg", "png", "jpeg", "webp"], label_visibility="collapsed")
     if upload_img: img_file_buffer = upload_img
 
-st.markdown("<br>", unsafe_allow_html=True)
-st.markdown('<span style="font-weight:700; color:#1f2937 !important">💰 Prix annoncé (FCFA)</span>', unsafe_allow_html=True)
-# Step à 50 000 FCFA
-price_input = st.number_input("Prix", min_value=0, step=5000, value=0, format="%d", label_visibility="collapsed")
+# Zone Prix Compacte
+# Utilisation de columns pour aligner Label et Input sur la même ligne si possible, ou réduire l'espace
+st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+col_label, col_input = st.columns([1, 2])
+with col_label:
+    st.markdown('<div style="padding-top: 10px; font-weight:700; color:#1f2937 !important">💰 Prix (FCFA)</div>', unsafe_allow_html=True)
+with col_input:
+    price_input = st.number_input("Prix", min_value=0, step=5000, value=0, format="%d", label_visibility="collapsed")
 
-# --- LOGIQUE DE BLOCAGE SI PRIX NUL ---
+# --- LOGIQUE ---
 is_ready = False
 error_msg = ""
 
@@ -448,105 +439,101 @@ if img_file_buffer:
     if price_input > 0:
         is_ready = True
     else:
-        error_msg = "⚠️ Veuillez entrer le prix du meuble pour lancer l'analyse."
+        error_msg = "⚠️ Entrez un prix > 0"
 else:
     error_msg = ""
 
-st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
 
-# Affichage du bouton ou de l'erreur
+# BOUTON ACTION
 if is_ready:
     if st.button("LANCER L'ANALYSE"):
         if not api_key:
             st.error("⚠️ Clé API manquante")
         else:
             image = Image.open(img_file_buffer)
-            st.image(image, width=120)
-            
-            with st.spinner("🔍 Analyse visuelle approfondie..."):
+            # Pas d'affichage d'image en grand pour gagner de la place, juste le spinner
+            with st.spinner("🔍 Analyse en cours..."):
                 json_str, info_msg = analyze_image_pro(image, price_input, api_key)
             
             if not json_str:
                 st.error("Erreur technique.")
-                st.caption(info_msg)
             else:
                 try:
                     data = json.loads(json_str)
                     if not data.get("is_furniture"):
                         st.error("🛑 Pas un meuble reconnu.")
-                        st.caption("Objets acceptés : Tables, Lits, Canapés, Armoires, Fauteuils...")
                     else:
-                        # EN-TÊTE
+                        # RÉSULTATS
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
                         c1, c2 = st.columns([2,1])
                         with c1:
-                            st.markdown(f"<h3 style='margin:0; font-size:1.4em; font-weight:800'>{data.get('titre')}</h3>", unsafe_allow_html=True)
-                            st.markdown(f"<span style='color:#6b7280; font-size:0.9em; font-weight:500'>{data.get('style')}</span>", unsafe_allow_html=True)
+                            st.markdown(f"<h3 style='margin:0; font-size:1.3em; font-weight:800'>{data.get('titre')}</h3>", unsafe_allow_html=True)
+                            st.markdown(f"<span style='color:#6b7280; font-size:0.85em; font-weight:500'>{data.get('style')}</span>", unsafe_allow_html=True)
                         with c2:
                             v = data.get('verdict_prix', 'N/A')
                             color = "bg-green" if "Affaire" in v else "bg-orange" if "Correct" in v else "bg-red"
                             st.markdown(f'<div style="text-align:right"><span class="verdict-badge {color}">{v}</span></div>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
 
-                        # SCORE CIRCULAIRE
+                        # SCORE
                         scores = data.get('scores', {})
                         global_score = scores.get('global', 50)
                         
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
                         st.markdown('<div class="tech-header">📊 Performance</div>', unsafe_allow_html=True)
                         
-                        st.markdown(f"""
-                        <div class="score-circle-container">
-                            <div class="score-circle" style="--percent: {global_score}%">
-                                <div style="position:absolute; text-align:center;">
-                                    <div class="score-value">{global_score}%</div>
-                                    <span class="score-label">ÉTAT GLOBAL</span>
-                                </div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                        gauges = [
-                            ("🧱 Solidité Structurelle", scores.get('solidite', 0)),
-                            ("💎 Qualité Matériaux", scores.get('materiaux', 0)),
-                            ("🛠️ Facilité Restauration", scores.get('restauration', 0))
-                        ]
-                        
-                        for label, val in gauges:
+                        c_score, c_gauges = st.columns([1, 2])
+                        with c_score:
                             st.markdown(f"""
-                            <div class="gauge-container">
-                                <div class="gauge-label">
-                                    <span>{label}</span>
-                                    <span>{val}%</span>
-                                </div>
-                                <div class="gauge-bg">
-                                    <div class="gauge-fill" style="width: {val}%;"></div>
+                            <div class="score-circle-container">
+                                <div class="score-circle" style="--percent: {global_score}%">
+                                    <div style="position:absolute; text-align:center;">
+                                        <div class="score-value">{global_score}%</div>
+                                    </div>
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
+                        with c_gauges:
+                            gauges = [
+                                ("Solidité", scores.get('solidite', 0)),
+                                ("Matériaux", scores.get('materiaux', 0)),
+                                ("Restaur.", scores.get('restauration', 0))
+                            ]
+                            for label, val in gauges:
+                                st.markdown(f"""
+                                <div class="gauge-container">
+                                    <div class="gauge-label">
+                                        <span>{label}</span>
+                                        <span>{val}%</span>
+                                    </div>
+                                    <div class="gauge-bg">
+                                        <div class="gauge-fill" style="width: {val}%;"></div>
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
 
-                        # MATÉRIAU
+                        # MATÉRIAU & AVIS
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                        st.markdown('<div class="tech-header">🧬 Composition</div>', unsafe_allow_html=True)
+                        st.markdown('<div class="tech-header">🧬 Analyse Expert</div>', unsafe_allow_html=True)
                         html_table = '<table class="styled-table"><tbody>'
                         for row in data.get('composition_materiau', []):
-                            html_table += f"<tr><td width='30%'><b>{row['couche']}</b></td><td>{row['compo']} <br><small style='color:#ea580c'>{row['etat']}</small></td></tr>"
+                            html_table += f"<tr><td width='35%'><b>{row['couche']}</b></td><td>{row['compo']} <br><small style='color:#ea580c'>{row['etat']}</small></td></tr>"
                         html_table += "</tbody></table>"
                         st.markdown(html_table, unsafe_allow_html=True)
                         
                         st.markdown(f"""
-                        <div style="margin-top:15px; padding:15px; background:#f9fafb; border-radius:10px; font-size:0.9em; border-left: 3px solid #ea580c;">
-                            🪑 <b>Menuisier :</b> {data.get('avis_menuisier')}<br><br>
-                            🧵 <b>Tapissier :</b> {data.get('avis_tapissier')}
+                        <div style="margin-top:10px; padding:10px; background:#f9fafb; border-radius:8px; font-size:0.85em; line-height:1.5;">
+                            🪑 {data.get('avis_menuisier')}<br><br>
+                            🧵 {data.get('avis_tapissier')}
                         </div>
                         """, unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
 
                         # SCÉNARIOS
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                        st.markdown('<div class="tech-header">⚖️ Scénarios</div>', unsafe_allow_html=True)
-                        
+                        st.markdown('<div class="tech-header">⚖️ Options</div>', unsafe_allow_html=True)
                         scenarios = data.get('scenarios', [])
                         cols = st.columns(3)
                         for i, col in enumerate(cols):
@@ -554,9 +541,9 @@ if is_ready:
                                 scen = scenarios[i]
                                 col.markdown(f"""
                                 <div class="scenario-card">
-                                    <div style="font-size:1.5em; margin-bottom:5px;">{scen['icone']}</div>
+                                    <div style="font-size:1.2em; margin-bottom:2px;">{scen['icone']}</div>
                                     <div class="scenario-title">{scen['titre']}</div>
-                                    <div class="scenario-cost">Coût: {scen['cout']}</div>
+                                    <div class="scenario-cost">{scen['cout']}</div>
                                     <div class="scenario-result">{scen['resultat']}</div>
                                 </div>
                                 """, unsafe_allow_html=True)
@@ -564,13 +551,13 @@ if is_ready:
 
                         # CONSEIL FINAL
                         st.markdown(f"""
-                        <div class="tech-card" style="background:#ecfdf5; border:1px solid #10b981; border-top:none;">
-                            <div style="color:#047857; font-weight:800; margin-bottom:5px; text-transform:uppercase; font-size:0.9em;">💡 Le Conseil du Gwani</div>
-                            <p style="color:#065f46; margin:0; font-weight:600;">{data.get('recommandation_finale')}</p>
+                        <div class="tech-card" style="background:#ecfdf5; border:1px solid #10b981; border-top:none; padding:15px;">
+                            <div style="color:#047857; font-weight:800; margin-bottom:5px; text-transform:uppercase; font-size:0.85em;">💡 Le Conseil du Gwani</div>
+                            <p style="color:#065f46; margin:0; font-weight:600; font-size:0.95em;">{data.get('recommandation_finale')}</p>
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # === SAUVEGARDE VERS SHEETS (FINAL) ===
+                        # SAUVEGARDE SHEETS
                         save_data_to_sheets(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
 
                 except json.JSONDecodeError:
@@ -578,17 +565,11 @@ if is_ready:
 elif error_msg:
     st.warning(error_msg)
 elif not img_file_buffer:
-    st.markdown("""
-    <div style='text-align:center; padding:40px; color:#9ca3af;'>
-        <p style="font-size:3em;">📸</p>
-        <p style="font-weight:600;">Prenez une photo pour commencer</p>
-    </div>
-    """, unsafe_allow_html=True)
+    pass # Plus d'espace vide inutile
 
 # --- FOOTER ---
 st.markdown("""
-    <div style='text-align: center; margin-top: 50px; color: #6b7280; font-size: 0.9em;'>
-        Made in Niger with ❤️ by <b>Moh</b>
+    <div style='text-align: center; margin-top: 30px; color: #9ca3af; font-size: 0.8em;'>
+        Made in Niger 🇳🇪
     </div>
     """, unsafe_allow_html=True)
-
