@@ -7,6 +7,15 @@ from datetime import datetime
 import time
 import json
 import re
+import pandas as pd
+
+# TENTATIVE D'IMPORT DE LA LIBRAIRIE SHEETS
+# Si elle n'est pas installée, on utilisera le CSV local par défaut
+try:
+    from streamlit_gsheets import GSheetsConnection
+    HAS_GSHEETS = True
+except ImportError:
+    HAS_GSHEETS = False
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -28,7 +37,6 @@ st.markdown("""
     }
 
     /* 2. FIX CRITIQUE : FORCER LA COULEUR DU TEXTE (CONTRE LE DARK MODE) */
-    /* On force tout le texte standard en gris foncé sur fond blanc */
     h1, h2, h3, h4, h5, h6, p, span, div, label, input, textarea, li, td, th {
         color: #1f2937 !important; 
     }
@@ -249,22 +257,43 @@ if not api_key:
     with st.expander("🔐 Configuration"):
         api_key = st.text_input("Clé API", type="password")
 
-# --- SAUVEGARDE SILENCIEUSE (DATA COLLECTION) ---
-# C'est la fonction qui manquait !
-def save_data_silent(furniture_type, price, score, verdict):
+# --- SAUVEGARDE INTELLIGENTE (SHEETS + CSV SECOURS) ---
+def save_data_smart(furniture_type, price, score, verdict):
+    # Données à sauvegarder
+    data_row = {
+        "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "Type_Meuble": furniture_type,
+        "Prix_FCFA": price,
+        "Score_Global": score,
+        "Verdict_IA": verdict
+    }
+    
+    # 1. Essai Google Sheets
+    saved_to_sheets = False
+    if HAS_GSHEETS:
+        try:
+            conn = st.connection("gsheets", type=GSheetsConnection)
+            # On essaie de lire pour voir si la connexion marche
+            df = conn.read(worksheet="Sheet1", ttl=0) 
+            # On ajoute la ligne
+            new_df = pd.DataFrame([data_row])
+            updated_df = pd.concat([df, new_df], ignore_index=True)
+            conn.update(worksheet="Sheet1", data=updated_df)
+            saved_to_sheets = True
+            # print("Sauvegarde Sheets réussie !")
+        except Exception as e:
+            # print(f"Erreur Sheets: {e}")
+            saved_to_sheets = False
+
+    # 2. Sauvegarde CSV locale (Toujours, comme backup ou si Sheets échoue)
     try:
         file_exists = os.path.exists("data_meubles.csv")
         with open("data_meubles.csv", mode="a", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
             if not file_exists:
                 writer.writerow(["Date", "Type_Meuble", "Prix_FCFA", "Score_Global", "Verdict_IA"])
-            writer.writerow([
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                furniture_type, 
-                price, 
-                score, 
-                verdict
-            ])
+            writer.writerow(list(data_row.values()))
+        # print("Sauvegarde CSV réussie !")
     except Exception:
         pass
 
@@ -501,8 +530,9 @@ if is_ready:
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # === SAUVEGARDE SILENCIEUSE (RESTAURÉE) ===
-                        save_data_silent(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
+                        # === SAUVEGARDE INTELLIGENTE ===
+                        # Si Sheets est configuré, ça part dessus. Sinon, ça reste en local.
+                        save_data_smart(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
 
                 except json.JSONDecodeError:
                     st.error("Erreur lecture IA.")
@@ -525,23 +555,26 @@ with st.expander("🔐 Espace Admin"):
     if password == "Niamey2024": # À changer
         st.success("Accès autorisé ✅")
         
+        if HAS_GSHEETS:
+            st.info("Les données sont synchronisées avec Google Sheets.")
+        
         if os.path.exists("data_meubles.csv"):
             try:
                 with open("data_meubles.csv", "r", encoding="utf-8") as f:
                     stats_lines = len(f.readlines()) - 1
-                st.caption(f"📊 Total analyses récoltées : {stats_lines}")
+                st.caption(f"📊 Données locales (Backup) : {stats_lines} entrées")
                 
                 with open("data_meubles.csv", "r", encoding="utf-8") as f:
                     st.download_button(
-                        label="📥 Télécharger le fichier CSV complet",
+                        label="📥 Télécharger le fichier CSV local",
                         data=f,
-                        file_name="gaskiyar_kaya_data.csv",
+                        file_name="gaskiyar_kaya_data_backup.csv",
                         mime="text/csv"
                     )
             except Exception:
                 st.error("Erreur de lecture du fichier.")
         else:
-            st.info("La base de données est vide pour le moment.")
+            st.info("Aucune donnée locale pour le moment.")
             
     elif password:
         st.error("Mot de passe incorrect ⛔")
