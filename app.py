@@ -16,20 +16,31 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS DESIGN "LUMIÈRE & ÉPURÉ" AVEC EXO 2 ---
+# --- CSS DESIGN "LUMIÈRE & ÉPURÉ" (CORRECTIF DARK MODE FINAL) ---
 st.markdown("""
     <style>
     /* Importation Police Exo 2 */
     @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;600;700;800&display=swap');
 
-    /* APPLICATION POLICE (SANS CASSER LES ICÔNES) */
+    /* 1. FORCER LA POLICE PARTOUT */
     html, body, [class*="css"] {
         font-family: 'Exo 2', sans-serif;
-        color: #1f2937;
+    }
+
+    /* 2. FIX CRITIQUE : FORCER LA COULEUR DU TEXTE (CONTRE LE DARK MODE) */
+    /* On force tout le texte standard en gris foncé sur fond blanc */
+    h1, h2, h3, h4, h5, h6, p, span, div, label, input, textarea, li, td, th {
+        color: #1f2937 !important; 
     }
     
-    h1, h2, h3, p, span, div, button, input, label {
-        font-family: 'Exo 2', sans-serif;
+    /* Exception : Le texte dans les boutons et badges doit rester BLANC */
+    button, .stButton button, .verdict-badge, div[data-testid="stCameraInput"] button {
+        color: white !important;
+    }
+    
+    /* Exception : Les petits textes d'aide en gris clair */
+    .stCaption, div[data-testid="stCaptionContainer"] p {
+        color: #6b7280 !important;
     }
 
     /* ARRIÈRE-PLAN */
@@ -55,14 +66,13 @@ st.markdown("""
     
     /* TITRES */
     h1 {
-        color: #111827 !important;
         font-weight: 800 !important;
         text-align: center;
         text-transform: uppercase;
         font-size: 1.8rem !important;
     }
     .tech-header {
-        color: #ea580c;
+        color: #ea580c !important; /* Orange forcé */
         font-weight: 700;
         font-size: 1em;
         margin-bottom: 15px;
@@ -102,14 +112,14 @@ st.markdown("""
         position: relative;
         font-size: 1.8em;
         font-weight: 800;
-        color: #ea580c;
+        color: #ea580c !important;
     }
     .score-label {
         position: relative;
         display: block;
         text-align: center;
         font-size: 0.7em;
-        color: #6b7280;
+        color: #6b7280 !important;
         font-weight: 600;
         margin-top: -5px;
     }
@@ -148,19 +158,19 @@ st.markdown("""
     }
     .scenario-title {
         font-weight: 800;
-        color: #374151;
+        color: #374151 !important;
         margin-bottom: 5px;
         text-transform: uppercase;
         font-size: 0.8em;
     }
     .scenario-cost {
         font-size: 0.75em;
-        color: #6b7280;
+        color: #6b7280 !important;
         margin-bottom: 5px;
     }
     .scenario-result {
         font-weight: 700;
-        color: #ea580c;
+        color: #ea580c !important;
         font-size: 0.9em;
     }
 
@@ -173,13 +183,13 @@ st.markdown("""
     .styled-table td {
         padding: 10px 0;
         border-bottom: 1px solid #f3f4f6;
+        color: #1f2937 !important;
     }
 
     /* BADGES */
     .verdict-badge {
         padding: 6px 12px;
         border-radius: 100px;
-        color: white;
         font-weight: 700;
         font-size: 0.85em;
     }
@@ -201,10 +211,13 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(234, 88, 12, 0.2);
     }
     
-    /* CORRECTION BOUTON CAMÉRA */
-    button[kind="primary"] {
+    /* CORRECTION BOUTON CAMÉRA (Orange et Lisible) */
+    div[data-testid="stCameraInput"] button {
         background-color: #ea580c !important;
-        border: none !important;
+        color: white !important;
+        border-radius: 50px !important;
+        font-weight: 700 !important;
+        border: 2px solid white !important;
     }
     
     .stTabs [aria-selected="true"] {
@@ -218,7 +231,7 @@ st.markdown("""
             padding-top: 2rem !important;
             padding-left: 1rem !important;
             padding-right: 1rem !important;
-            padding-bottom: 150px !important;
+            padding-bottom: 150px !important; /* Espace en bas pour éviter le chevauchement */
         }
         h1 {
             font-size: 1.6rem !important;
@@ -236,7 +249,7 @@ if not api_key:
     with st.expander("🔐 Configuration"):
         api_key = st.text_input("Clé API", type="password")
 
-# --- SAUVEGARDE SILENCIEUSE ---
+# --- SAUVEGARDE SILENCIEUSE (DATA COLLECTION) ---
 def save_data_silent(furniture_type, price, score, verdict):
     try:
         file_exists = os.path.exists("data_meubles.csv")
@@ -337,9 +350,9 @@ def analyze_image_pro(image, price, api_key):
 
 # --- INTERFACE ---
 st.title("Gaskiyar Kaya 🇳🇪")
-st.markdown("<p style='text-align:center; color:#6b7280; margin-top:-10px; margin-bottom:20px; font-weight:500;'>L'Expert Meuble de confiance</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#6b7280 !important; margin-top:-10px; margin-bottom:20px; font-weight:500;'>L'Expert Meuble de confiance</p>", unsafe_allow_html=True)
 
-st.info("📸 **Astuce :** Une seule photo bien cadrée suffit. Si la caméra selfie s'ouvre, changez de caméra dans les options du navigateur.", icon="ℹ️")
+st.info("📸 **Astuce :** Une seule photo bien cadrée suffit. Formats acceptés : JPG, PNG, WEBP (Max 200Mo)", icon="ℹ️")
 
 tab_cam, tab_upload = st.tabs(["📸 Prendre Photo", "📂 Galerie"])
 img_file_buffer = None
@@ -353,7 +366,8 @@ with tab_upload:
     if upload_img: img_file_buffer = upload_img
 
 st.markdown("<br>", unsafe_allow_html=True)
-st.markdown('<span style="font-weight:700; color:#1f2937">💰 Prix annoncé (FCFA)</span>', unsafe_allow_html=True)
+st.markdown('<span style="font-weight:700; color:#1f2937 !important">💰 Prix annoncé (FCFA)</span>', unsafe_allow_html=True)
+# Step à 50 000 FCFA
 price_input = st.number_input("Prix", min_value=0, step=50000, value=0, format="%d", label_visibility="collapsed")
 
 # --- LOGIQUE DE BLOCAGE SI PRIX NUL ---
@@ -507,7 +521,7 @@ st.markdown("<br><br><br>", unsafe_allow_html=True)
 with st.expander("🔐 Espace Admin"):
     password = st.text_input("Mot de passe administrateur", type="password")
     
-    if password == "Boka2025": 
+    if password == "Niamey2024": 
         st.success("Accès autorisé ✅")
         
         if os.path.exists("data_meubles.csv"):
@@ -530,4 +544,3 @@ with st.expander("🔐 Espace Admin"):
             
     elif password:
         st.error("Mot de passe incorrect ⛔")
-
