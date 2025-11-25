@@ -582,15 +582,9 @@ elif not img_file_buffer:
     </div>
     """, unsafe_allow_html=True)
 
-# --- ZONE ADMIN SÉCURISÉE ---
-st.markdown("<br><br><br>", unsafe_allow_html=True)
-
-with st.expander("🔐 Espace Admin"):
-    password = st.text_input("Mot de passe administrateur", type="password")
-    
-    if password == "Niamey2024": 
-        st.success("Accès autorisé ✅")
-        st.info("Les données sont envoyées directement vers votre Google Sheets.")
-        st.caption("Note : Le téléchargement CSV local est désactivé pour privilégier le Cloud.")
-    elif password:
-        st.error("Mot de passe incorrect ⛔")
+# --- FOOTER ---
+st.markdown("""
+    <div style='text-align: center; margin-top: 50px; color: #6b7280; font-size: 0.9em;'>
+        Made in Niger with ❤️ by <b>Gaskiyar Kaya</b>
+    </div>
+    """, unsafe_allow_html=True)
