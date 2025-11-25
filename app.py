@@ -7,15 +7,6 @@ from datetime import datetime
 import time
 import json
 import re
-import pandas as pd
-
-# TENTATIVE D'IMPORT DE LA LIBRAIRIE SHEETS
-# Si elle n'est pas installée, on utilisera le CSV local par défaut
-try:
-    from streamlit_gsheets import GSheetsConnection
-    HAS_GSHEETS = True
-except ImportError:
-    HAS_GSHEETS = False
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -25,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS DESIGN "LUMIÈRE & ÉPURÉ" (CORRECTIF DARK MODE FINAL) ---
+# --- CSS DESIGN "LUMIÈRE & ÉPURÉ" (CORRECTIF CONTRASTE) ---
 st.markdown("""
     <style>
     /* Importation Police Exo 2 */
@@ -36,17 +27,52 @@ st.markdown("""
         font-family: 'Exo 2', sans-serif;
     }
 
-    /* 2. FIX CRITIQUE : FORCER LA COULEUR DU TEXTE (CONTRE LE DARK MODE) */
-    h1, h2, h3, h4, h5, h6, p, span, div, label, input, textarea, li, td, th {
+    /* 2. COULEURS TEXTE GLOBALES (Noir force) */
+    h1, h2, h3, h4, h5, h6, p, span, div, label, li, td, th {
         color: #1f2937 !important; 
     }
     
-    /* Exception : Le texte dans les boutons et badges doit rester BLANC */
-    button, .stButton button, .verdict-badge, div[data-testid="stCameraInput"] button {
+    /* 3. CORRECTION INPUTS (PRIX INVISIBLE) */
+    /* On force le fond blanc et le texte noir pour les champs de saisie */
+    .stTextInput input, .stNumberInput input {
+        background-color: #ffffff !important;
+        color: #000000 !important; /* Texte noir forcé */
+        border: 1px solid #d1d5db !important;
+        caret-color: #ea580c !important; /* Curseur orange */
+    }
+    /* Pour le mode sombre du navigateur qui essaierait d'inverser */
+    @media (prefers-color-scheme: dark) {
+        .stTextInput input, .stNumberInput input {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+        }
+    }
+
+    /* 4. CORRECTION UPLOAD (ILLISIBLE) */
+    /* Zone de drag & drop */
+    div[data-testid="stFileUploader"] {
+        background-color: #f9fafb; /* Fond gris très clair */
+        border: 1px dashed #d1d5db;
+        border-radius: 10px;
+        padding: 20px;
+    }
+    /* Le texte "Drag and drop..." */
+    div[data-testid="stFileUploader"] section > div {
+        color: #4b5563 !important; /* Gris moyen lisible */
+    }
+    /* Le petit bouton "Browse files" */
+    div[data-testid="stFileUploader"] button {
+        background-color: white !important;
+        color: #1f2937 !important;
+        border: 1px solid #d1d5db !important;
+    }
+
+    /* Exception : Boutons et Badges (Texte Blanc) */
+    button[kind="primary"], .stButton button, .verdict-badge, div[data-testid="stCameraInput"] button {
         color: white !important;
     }
     
-    /* Exception : Les petits textes d'aide en gris clair */
+    /* Exception : Captions (Gris) */
     .stCaption, div[data-testid="stCaptionContainer"] p {
         color: #6b7280 !important;
     }
@@ -80,7 +106,7 @@ st.markdown("""
         font-size: 1.8rem !important;
     }
     .tech-header {
-        color: #ea580c !important; /* Orange forcé */
+        color: #ea580c !important;
         font-weight: 700;
         font-size: 1em;
         margin-bottom: 15px;
@@ -239,7 +265,7 @@ st.markdown("""
             padding-top: 2rem !important;
             padding-left: 1rem !important;
             padding-right: 1rem !important;
-            padding-bottom: 150px !important; /* Espace en bas pour éviter le chevauchement */
+            padding-bottom: 150px !important;
         }
         h1 {
             font-size: 1.6rem !important;
@@ -257,43 +283,21 @@ if not api_key:
     with st.expander("🔐 Configuration"):
         api_key = st.text_input("Clé API", type="password")
 
-# --- SAUVEGARDE INTELLIGENTE (SHEETS + CSV SECOURS) ---
-def save_data_smart(furniture_type, price, score, verdict):
-    # Données à sauvegarder
-    data_row = {
-        "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "Type_Meuble": furniture_type,
-        "Prix_FCFA": price,
-        "Score_Global": score,
-        "Verdict_IA": verdict
-    }
-    
-    # 1. Essai Google Sheets
-    saved_to_sheets = False
-    if HAS_GSHEETS:
-        try:
-            conn = st.connection("gsheets", type=GSheetsConnection)
-            # On essaie de lire pour voir si la connexion marche
-            df = conn.read(worksheet="Sheet1", ttl=0) 
-            # On ajoute la ligne
-            new_df = pd.DataFrame([data_row])
-            updated_df = pd.concat([df, new_df], ignore_index=True)
-            conn.update(worksheet="Sheet1", data=updated_df)
-            saved_to_sheets = True
-            # print("Sauvegarde Sheets réussie !")
-        except Exception as e:
-            # print(f"Erreur Sheets: {e}")
-            saved_to_sheets = False
-
-    # 2. Sauvegarde CSV locale (Toujours, comme backup ou si Sheets échoue)
+# --- SAUVEGARDE SILENCIEUSE ---
+def save_data_silent(furniture_type, price, score, verdict):
     try:
         file_exists = os.path.exists("data_meubles.csv")
         with open("data_meubles.csv", mode="a", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
             if not file_exists:
                 writer.writerow(["Date", "Type_Meuble", "Prix_FCFA", "Score_Global", "Verdict_IA"])
-            writer.writerow(list(data_row.values()))
-        # print("Sauvegarde CSV réussie !")
+            writer.writerow([
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                furniture_type, 
+                price, 
+                score, 
+                verdict
+            ])
     except Exception:
         pass
 
@@ -530,9 +534,8 @@ if is_ready:
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # === SAUVEGARDE INTELLIGENTE ===
-                        # Si Sheets est configuré, ça part dessus. Sinon, ça reste en local.
-                        save_data_smart(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
+                        # === SAUVEGARDE SILENCIEUSE ===
+                        save_data_silent(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
 
                 except json.JSONDecodeError:
                     st.error("Erreur lecture IA.")
@@ -552,29 +555,26 @@ st.markdown("<br><br><br>", unsafe_allow_html=True)
 with st.expander("🔐 Espace Admin"):
     password = st.text_input("Mot de passe administrateur", type="password")
     
-    if password == "Niamey2024": # À changer
+    if password == "Niamey2024": 
         st.success("Accès autorisé ✅")
-        
-        if HAS_GSHEETS:
-            st.info("Les données sont synchronisées avec Google Sheets.")
         
         if os.path.exists("data_meubles.csv"):
             try:
                 with open("data_meubles.csv", "r", encoding="utf-8") as f:
                     stats_lines = len(f.readlines()) - 1
-                st.caption(f"📊 Données locales (Backup) : {stats_lines} entrées")
+                st.caption(f"📊 Total analyses récoltées : {stats_lines}")
                 
                 with open("data_meubles.csv", "r", encoding="utf-8") as f:
                     st.download_button(
-                        label="📥 Télécharger le fichier CSV local",
+                        label="📥 Télécharger le fichier CSV complet",
                         data=f,
-                        file_name="gaskiyar_kaya_data_backup.csv",
+                        file_name="gaskiyar_kaya_data.csv",
                         mime="text/csv"
                     )
             except Exception:
                 st.error("Erreur de lecture du fichier.")
         else:
-            st.info("Aucune donnée locale pour le moment.")
+            st.info("La base de données est vide pour le moment.")
             
     elif password:
         st.error("Mot de passe incorrect ⛔")
