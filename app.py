@@ -52,13 +52,13 @@ st.markdown("""
     .stTabs [data-baseweb="tab-list"] {
         background-color: white;
         border-radius: 12px;
-        padding: 2px; /* Moins de padding */
+        padding: 2px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.02);
         border: 1px solid #e5e7eb;
-        margin-bottom: 10px;
+        margin-bottom: 5px; /* Réduit */
     }
     .stTabs [data-baseweb="tab"] {
-        height: 2.5rem; /* Onglets moins hauts */
+        height: 2.5rem;
         border-radius: 8px;
         font-weight: 600;
         color: #6b7280 !important;
@@ -76,7 +76,7 @@ st.markdown("""
         background-color: #f9fafb;
         border: 1px dashed #d1d5db;
         border-radius: 10px;
-        padding: 10px; /* Moins de padding */
+        padding: 10px;
     }
     div[data-testid="stFileUploader"] section > div {
         color: #4b5563 !important; 
@@ -105,14 +105,14 @@ st.markdown("""
         background-size: 20px 20px;
     }
     
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    /* SUPPRESSION TOTALE HEADER ET FOOTER STREAMLIT */
+    #MainMenu, header, footer {visibility: hidden;}
+    div[data-testid="stHeader"] { display: none !important; } /* Supprime l'espace vide en haut */
 
     /* CARTE RÉSULTAT */
     .tech-card {
         background: white;
-        padding: 15px; /* Padding réduit */
+        padding: 15px;
         border-radius: 16px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.03);
         margin-bottom: 15px;
@@ -124,8 +124,8 @@ st.markdown("""
         font-weight: 800 !important;
         text-align: center;
         text-transform: uppercase;
-        font-size: 1.5rem !important; /* Titre plus petit */
-        margin-bottom: 0 !important;
+        font-size: 1.5rem !important;
+        margin-top: -60px !important; /* Remonte le titre violemment vers le haut */
         padding-bottom: 0 !important;
     }
     .tech-header {
@@ -148,7 +148,7 @@ st.markdown("""
         margin: 10px 0;
     }
     .score-circle {
-        width: 100px; /* Cercle plus petit */
+        width: 100px;
         height: 100px;
         border-radius: 50%;
         background: conic-gradient(#ea580c var(--percent), #f3f4f6 0);
@@ -266,7 +266,7 @@ st.markdown("""
         font-size: 1.1em;
         text-transform: uppercase;
         box-shadow: 0 4px 12px rgba(234, 88, 12, 0.2);
-        margin-top: 0px; /* Réduit espace au dessus bouton */
+        margin-top: 0px;
     }
     
     /* CORRECTION BOUTON CAMÉRA (Orange et Lisible) */
@@ -281,20 +281,21 @@ st.markdown("""
     /* === OPTIMISATION MOBILE CRITIQUE === */
     @media only screen and (max-width: 600px) {
         .main .block-container {
-            /* On remonte tout au maximum vers le haut */
-            padding-top: 1rem !important; 
+            /* Padding top à 0 pour remonter tout en haut */
+            padding-top: 2rem !important; 
             padding-left: 0.5rem !important;
             padding-right: 0.5rem !important;
             padding-bottom: 100px !important;
         }
+        /* Ajustement spécifique du titre sur mobile */
         h1 {
             font-size: 1.4rem !important;
+            margin-top: -40px !important; /* Remonte le titre violemment */
             margin-bottom: 0.2rem !important;
         }
         .stCaption {
             margin-bottom: 0.5rem !important;
         }
-        /* Réduire les espaces verticaux entre les blocs */
         div[data-testid="stVerticalBlock"] > div {
             gap: 0.5rem !important;
         }
@@ -423,7 +424,6 @@ with tab_upload:
     if upload_img: img_file_buffer = upload_img
 
 # Zone Prix Compacte
-# Utilisation de columns pour aligner Label et Input sur la même ligne si possible, ou réduire l'espace
 st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
 col_label, col_input = st.columns([1, 2])
 with col_label:
