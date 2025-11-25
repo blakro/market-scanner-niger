@@ -316,9 +316,12 @@ def save_data_to_sheets(furniture_type, price, score, verdict):
             "Verdict_IA": verdict
         }])
         
-        # 3. Lecture et Mise à jour
+        # 3. Lecture et Mise à jour (AVEC FIX CACHE TTL=0)
         try:
-            existing_data = conn.read(worksheet="Sheet1")
+            # ttl=0 force le rechargement complet des données depuis Google
+            # pour éviter d'écraser les nouvelles lignes avec une version en cache
+            existing_data = conn.read(worksheet="Sheet1", ttl=0)
+            
             if existing_data.empty:
                  updated_data = new_data
             else:
@@ -585,7 +588,6 @@ elif not img_file_buffer:
 # --- FOOTER ---
 st.markdown("""
     <div style='text-align: center; margin-top: 50px; color: #6b7280; font-size: 0.9em;'>
-        Made in Niger with ❤️ by <b>Moh</b>
+        Made in Niger with ❤️ by <b>Gaskiyar Kaya</b>
     </div>
     """, unsafe_allow_html=True)
-
