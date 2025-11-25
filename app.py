@@ -438,7 +438,7 @@ with tab_upload:
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown('<span style="font-weight:700; color:#1f2937 !important">💰 Prix annoncé (FCFA)</span>', unsafe_allow_html=True)
 # Step à 50 000 FCFA
-price_input = st.number_input("Prix", min_value=0, step=50000, value=0, format="%d", label_visibility="collapsed")
+price_input = st.number_input("Prix", min_value=0, step=5000, value=0, format="%d", label_visibility="collapsed")
 
 # --- LOGIQUE DE BLOCAGE SI PRIX NUL ---
 is_ready = False
@@ -588,6 +588,7 @@ elif not img_file_buffer:
 # --- FOOTER ---
 st.markdown("""
     <div style='text-align: center; margin-top: 50px; color: #6b7280; font-size: 0.9em;'>
-        Made in Niger with ❤️ by <b>Gaskiyar Kaya</b>
+        Made in Niger with ❤️ by <b>Moh</b>
     </div>
     """, unsafe_allow_html=True)
+
