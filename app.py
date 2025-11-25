@@ -1,14 +1,12 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
-# import csv  <-- Plus besoin de CSV local
+import csv
 import os
 from datetime import datetime
 import time
 import json
 import re
-from streamlit_gsheets import GSheetsConnection # Nouvelle librairie
-import pandas as pd # Nécessaire pour manipuler les données avant envoi
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -251,40 +249,23 @@ if not api_key:
     with st.expander("🔐 Configuration"):
         api_key = st.text_input("Clé API", type="password")
 
-# --- SAUVEGARDE GOOGLE SHEETS (DATA COLLECTION) ---
-def save_data_to_sheets(furniture_type, price, score, verdict):
-    """Envoie les données vers Google Sheets."""
+# --- SAUVEGARDE SILENCIEUSE (DATA COLLECTION) ---
+# C'est la fonction qui manquait !
+def save_data_silent(furniture_type, price, score, verdict):
     try:
-        # 1. Connexion
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        
-        # 2. Préparation de la nouvelle ligne
-        new_data = pd.DataFrame([{
-            "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Type_Meuble": furniture_type,
-            "Prix_FCFA": price,
-            "Score_Global": score,
-            "Verdict_IA": verdict
-        }])
-        
-        # 3. Lecture des données existantes (pour ne pas écraser)
-        try:
-            existing_data = conn.read(worksheet="Sheet1")
-            # Si le fichier est vide ou n'existe pas, on crée un DataFrame vide
-            if existing_data.empty:
-                 updated_data = new_data
-            else:
-                 updated_data = pd.concat([existing_data, new_data], ignore_index=True)
-        except:
-            # Si erreur de lecture (ex: feuille vide), on commence à zéro
-            updated_data = new_data
-            
-        # 4. Écriture (Update)
-        conn.update(worksheet="Sheet1", data=updated_data)
-        
-    except Exception as e:
-        # Mode silencieux : on n'affiche pas l'erreur à l'utilisateur lambda
-        # print(f"Erreur Sheets: {e}") # Pour debug console uniquement
+        file_exists = os.path.exists("data_meubles.csv")
+        with open("data_meubles.csv", mode="a", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file)
+            if not file_exists:
+                writer.writerow(["Date", "Type_Meuble", "Prix_FCFA", "Score_Global", "Verdict_IA"])
+            writer.writerow([
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                furniture_type, 
+                price, 
+                score, 
+                verdict
+            ])
+    except Exception:
         pass
 
 # --- UTILITAIRE JSON ---
@@ -520,7 +501,7 @@ if is_ready:
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # === SAUVEGARDE VERS GOOGLE SHEETS ===
+                        # === SAUVEGARDE SILENCIEUSE (RESTAURÉE) ===
                         save_data_silent(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
 
                 except json.JSONDecodeError:
@@ -535,17 +516,32 @@ elif not img_file_buffer:
     </div>
     """, unsafe_allow_html=True)
 
-# --- ZONE ADMIN SÉCURISÉE (VISUALISATION RAPIDE) ---
-# Optionnel : Garder un accès rapide aux données si la connexion sheets échoue
+# --- ZONE ADMIN SÉCURISÉE ---
 st.markdown("<br><br><br>", unsafe_allow_html=True)
 
 with st.expander("🔐 Espace Admin"):
     password = st.text_input("Mot de passe administrateur", type="password")
     
-    if password == "Boka2025": 
+    if password == "Niamey2024": # À changer
         st.success("Accès autorisé ✅")
-        st.info("Les données sont désormais stockées sur Google Sheets. Consultez votre Drive.")
-        # Si vous voulez garder un affichage CSV local de secours, vous pouvez remettre le bloc précédent ici
+        
+        if os.path.exists("data_meubles.csv"):
+            try:
+                with open("data_meubles.csv", "r", encoding="utf-8") as f:
+                    stats_lines = len(f.readlines()) - 1
+                st.caption(f"📊 Total analyses récoltées : {stats_lines}")
+                
+                with open("data_meubles.csv", "r", encoding="utf-8") as f:
+                    st.download_button(
+                        label="📥 Télécharger le fichier CSV complet",
+                        data=f,
+                        file_name="gaskiyar_kaya_data.csv",
+                        mime="text/csv"
+                    )
+            except Exception:
+                st.error("Erreur de lecture du fichier.")
+        else:
+            st.info("La base de données est vide pour le moment.")
             
     elif password:
         st.error("Mot de passe incorrect ⛔")
