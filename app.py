@@ -1,12 +1,14 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
-import csv
 import os
 from datetime import datetime
 import time
 import json
 import re
+# Imports pour Google Sheets
+from streamlit_gsheets import GSheetsConnection
+import pandas as pd
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -16,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS DESIGN "LUMIÈRE & ÉPURÉ" (CORRECTIF CONTRASTE) ---
+# --- CSS DESIGN "LUMIÈRE & ÉPURÉ" (CORRECTIF CONTRASTE TOTAL) ---
 st.markdown("""
     <style>
     /* Importation Police Exo 2 */
@@ -32,23 +34,44 @@ st.markdown("""
         color: #1f2937 !important; 
     }
     
-    /* 3. CORRECTION INPUTS (PRIX INVISIBLE) */
-    /* On force le fond blanc et le texte noir pour les champs de saisie */
-    .stTextInput input, .stNumberInput input {
+    /* 3. CORRECTION CRITIQUE INPUTS (PRIX INVISIBLE) */
+    /* Force le fond blanc et texte noir pour le champ Prix, même en Dark Mode */
+    .stNumberInput input {
         background-color: #ffffff !important;
-        color: #000000 !important; /* Texte noir forcé */
+        color: #000000 !important; 
+        -webkit-text-fill-color: #000000 !important; /* Pour Safari/iOS */
         border: 1px solid #d1d5db !important;
         caret-color: #ea580c !important; /* Curseur orange */
+        font-weight: 700 !important;
     }
-    /* Pour le mode sombre du navigateur qui essaierait d'inverser */
-    @media (prefers-color-scheme: dark) {
-        .stTextInput input, .stNumberInput input {
-            background-color: #ffffff !important;
-            color: #000000 !important;
-        }
+    
+    /* Boutons + et - du NumberInput */
+    .stNumberInput button {
+        background-color: #f3f4f6 !important;
+        color: #1f2937 !important;
     }
 
-    /* 4. CORRECTION UPLOAD (ILLISIBLE) */
+    /* 4. CORRECTION ONGLETS (PRENDRE PHOTO / GALERIE) */
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: white;
+        border-radius: 12px;
+        padding: 5px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+        border: 1px solid #e5e7eb;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 3rem;
+        border-radius: 8px;
+        font-weight: 600;
+        color: #6b7280 !important; /* Gris par défaut */
+        background-color: transparent !important;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #fff7ed !important; /* Fond Orange clair */
+        color: #ea580c !important; /* Texte Orange */
+    }
+
+    /* 5. CORRECTION UPLOAD (ILLISIBLE) */
     /* Zone de drag & drop */
     div[data-testid="stFileUploader"] {
         background-color: #f9fafb; /* Fond gris très clair */
@@ -58,7 +81,7 @@ st.markdown("""
     }
     /* Le texte "Drag and drop..." */
     div[data-testid="stFileUploader"] section > div {
-        color: #4b5563 !important; /* Gris moyen lisible */
+        color: #4b5563 !important; 
     }
     /* Le petit bouton "Browse files" */
     div[data-testid="stFileUploader"] button {
@@ -67,11 +90,10 @@ st.markdown("""
         border: 1px solid #d1d5db !important;
     }
 
-    /* Exception : Boutons et Badges (Texte Blanc) */
-    button[kind="primary"], .stButton button, .verdict-badge, div[data-testid="stCameraInput"] button {
+    /* Exception : Boutons d'action principaux et Badges (Texte Blanc) */
+    .stButton > button, .verdict-badge, div[data-testid="stCameraInput"] button {
         color: white !important;
     }
-    
     /* Exception : Captions (Gris) */
     .stCaption, div[data-testid="stCaptionContainer"] p {
         color: #6b7280 !important;
@@ -253,11 +275,6 @@ st.markdown("""
         font-weight: 700 !important;
         border: 2px solid white !important;
     }
-    
-    .stTabs [aria-selected="true"] {
-        background-color: #fff7ed !important;
-        color: #ea580c !important;
-    }
 
     /* MOBILE OPTIMISATION */
     @media only screen and (max-width: 600px) {
@@ -283,22 +300,38 @@ if not api_key:
     with st.expander("🔐 Configuration"):
         api_key = st.text_input("Clé API", type="password")
 
-# --- SAUVEGARDE SILENCIEUSE ---
-def save_data_silent(furniture_type, price, score, verdict):
+# --- SAUVEGARDE VERS GOOGLE SHEETS (DATA COLLECTION) ---
+def save_data_to_sheets(furniture_type, price, score, verdict):
+    """Envoie les données vers Google Sheets."""
     try:
-        file_exists = os.path.exists("data_meubles.csv")
-        with open("data_meubles.csv", mode="a", newline="", encoding="utf-8") as file:
-            writer = csv.writer(file)
-            if not file_exists:
-                writer.writerow(["Date", "Type_Meuble", "Prix_FCFA", "Score_Global", "Verdict_IA"])
-            writer.writerow([
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                furniture_type, 
-                price, 
-                score, 
-                verdict
-            ])
+        # 1. Connexion
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        
+        # 2. Préparation de la nouvelle ligne
+        new_data = pd.DataFrame([{
+            "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "Type_Meuble": furniture_type,
+            "Prix_FCFA": price,
+            "Score_Global": score,
+            "Verdict_IA": verdict
+        }])
+        
+        # 3. Lecture et Mise à jour
+        try:
+            existing_data = conn.read(worksheet="Sheet1")
+            if existing_data.empty:
+                 updated_data = new_data
+            else:
+                 updated_data = pd.concat([existing_data, new_data], ignore_index=True)
+        except:
+            updated_data = new_data
+            
+        # 4. Envoi
+        conn.update(worksheet="Sheet1", data=updated_data)
+        
     except Exception:
+        # Silencieux pour l'utilisateur, les données sont perdues si la connexion échoue
+        # C'est le compromis pour la fluidité.
         pass
 
 # --- UTILITAIRE JSON ---
@@ -534,8 +567,8 @@ if is_ready:
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # === SAUVEGARDE SILENCIEUSE ===
-                        save_data_silent(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
+                        # === SAUVEGARDE VERS SHEETS (FINAL) ===
+                        save_data_to_sheets(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
 
                 except json.JSONDecodeError:
                     st.error("Erreur lecture IA.")
@@ -557,24 +590,7 @@ with st.expander("🔐 Espace Admin"):
     
     if password == "Niamey2024": 
         st.success("Accès autorisé ✅")
-        
-        if os.path.exists("data_meubles.csv"):
-            try:
-                with open("data_meubles.csv", "r", encoding="utf-8") as f:
-                    stats_lines = len(f.readlines()) - 1
-                st.caption(f"📊 Total analyses récoltées : {stats_lines}")
-                
-                with open("data_meubles.csv", "r", encoding="utf-8") as f:
-                    st.download_button(
-                        label="📥 Télécharger le fichier CSV complet",
-                        data=f,
-                        file_name="gaskiyar_kaya_data.csv",
-                        mime="text/csv"
-                    )
-            except Exception:
-                st.error("Erreur de lecture du fichier.")
-        else:
-            st.info("La base de données est vide pour le moment.")
-            
+        st.info("Les données sont envoyées directement vers votre Google Sheets.")
+        st.caption("Note : Le téléchargement CSV local est désactivé pour privilégier le Cloud.")
     elif password:
         st.error("Mot de passe incorrect ⛔")
