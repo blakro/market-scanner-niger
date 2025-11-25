@@ -585,6 +585,7 @@ elif not img_file_buffer:
 # --- FOOTER ---
 st.markdown("""
     <div style='text-align: center; margin-top: 50px; color: #6b7280; font-size: 0.9em;'>
-        Made in Niger with ❤️ by <b>Gaskiyar Kaya</b>
+        Made in Niger with ❤️ by <b>Moh</b>
     </div>
     """, unsafe_allow_html=True)
+
