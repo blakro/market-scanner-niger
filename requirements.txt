@@ -2,3 +2,5 @@ streamlit
 google-generativeai
 Pillow
 st-gsheets-connection
+pytest
+fpdf2
