@@ -1,0 +1,328 @@
+/* Importation Police Exo 2 */
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;600;700;800&display=swap');
+
+/* --- VARIABLES --- */
+:root {
+    --primary-color: #ea580c;
+    --primary-light: #fff7ed;
+    --secondary-color: #1f2937;
+    --text-color: #1f2937;
+    --bg-color: #fafafa;
+    --card-bg: #ffffff;
+    --border-color: #e5e7eb;
+    --shadow-soft: 0 4px 20px rgba(0,0,0,0.05);
+}
+
+/* STREAMLIT DARK MODE ADAPTATION */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --text-color: #f3f4f6; /* Texte clair */
+        --bg-color: #111827; /* Fond sombre */
+        --card-bg: #1f2937; /* Carte sombre */
+        --border-color: #374151; /* Bordure sombre */
+        --secondary-color: #f3f4f6;
+        --shadow-soft: 0 4px 20px rgba(0,0,0,0.3);
+    }
+}
+
+/* 1. GLOBAL STYLES */
+html, body, [class*="css"] {
+    font-family: 'Exo 2', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6, p, span, div, label, li, td, th {
+    /* On laisse Streamlit gérer la couleur de base sauf surcharge */
+}
+
+/* 2. INPUTS & FORMS */
+.stNumberInput input {
+    /* Force le fond blanc et texte noir pour les inputs même en mode sombre pour lisibilité */
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    border: 1px solid #d1d5db !important;
+    caret-color: var(--primary-color) !important;
+    font-weight: 700 !important;
+    border-radius: 8px;
+}
+
+.stNumberInput button {
+    background-color: #f3f4f6 !important;
+    color: #1f2937 !important; /* Force text noir sur bouton clair */
+    border-radius: 8px;
+}
+
+/* 3. TABS */
+.stTabs [data-baseweb="tab-list"] {
+    background-color: var(--card-bg); /* S'adapte */
+    border-radius: 12px;
+    padding: 5px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+    border: 1px solid var(--border-color);
+    gap: 5px;
+}
+.stTabs [data-baseweb="tab"] {
+    height: 3rem;
+    border-radius: 8px;
+    font-weight: 600;
+    color: var(--secondary-color) !important;
+    background-color: transparent !important;
+    flex: 1;
+}
+.stTabs [aria-selected="true"] {
+    background-color: var(--primary-light) !important;
+    color: var(--primary-color) !important;
+}
+
+/* 4. UPLOAD AREA */
+div[data-testid="stFileUploader"] {
+    background-color: var(--bg-color);
+    border: 1px dashed var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.3s ease;
+}
+div[data-testid="stFileUploader"]:hover {
+    border-color: var(--primary-color);
+    background-color: var(--primary-light);
+}
+
+div[data-testid="stFileUploader"] section > div {
+    color: var(--text-color) !important;
+}
+div[data-testid="stFileUploader"] button {
+    background-color: var(--card-bg) !important;
+    color: var(--text-color) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 8px;
+}
+
+/* 5. BUTTONS */
+.stButton > button {
+    width: 100%;
+    border-radius: 12px;
+    height: 3.8em;
+    background-color: var(--primary-color);
+    color: white !important;
+    font-weight: 700;
+    border: none;
+    font-size: 1.1em;
+    text-transform: uppercase;
+    box-shadow: 0 4px 12px rgba(234, 88, 12, 0.2);
+    transition: transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.stButton > button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(234, 88, 12, 0.3);
+}
+
+.stButton > button:active {
+    transform: translateY(0);
+}
+
+div[data-testid="stCameraInput"] button {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+    border-radius: 50px !important;
+    font-weight: 700 !important;
+    border: 2px solid white !important;
+}
+
+/* EXCEPTIONS */
+.verdict-badge, div[data-testid="stCameraInput"] button {
+    color: white !important;
+}
+.stCaption, div[data-testid="stCaptionContainer"] p {
+    color: #6b7280 !important;
+}
+
+/* 6. BACKGROUND & LAYOUT */
+.stApp {
+    /* Laisser Streamlit gérer le background pour cohérence complète */
+    /* Mais on peut ajouter un pattern subtil */
+    background-image: radial-gradient(var(--border-color) 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+
+/* 7. CARDS & RESULTS */
+.tech-card {
+    background: var(--card-bg);
+    padding: 24px;
+    border-radius: 16px;
+    box-shadow: var(--shadow-soft);
+    margin-bottom: 24px;
+    border: 1px solid var(--border-color);
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+h1 {
+    font-weight: 800 !important;
+    text-align: center;
+    text-transform: uppercase;
+    font-size: 2rem !important;
+    letter-spacing: -0.5px;
+    margin-bottom: 0.5rem;
+    color: var(--text-color) !important;
+}
+
+.tech-header {
+    color: var(--primary-color) !important;
+    font-weight: 700;
+    font-size: 1.1em;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 2px solid var(--primary-light);
+    padding-bottom: 8px;
+}
+
+/* 8. SCORES */
+.score-circle-container {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+}
+.score-circle {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: conic-gradient(var(--primary-color) var(--percent), #f3f4f6 0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+.score-circle::before {
+    content: "";
+    width: 115px;
+    height: 115px;
+    background: var(--card-bg); /* Adapte le centre du donut */
+    border-radius: 50%;
+    position: absolute;
+}
+.score-value {
+    position: relative;
+    font-size: 2.2em;
+    font-weight: 800;
+    color: var(--primary-color) !important;
+    line-height: 1;
+}
+.score-label {
+    position: relative;
+    display: block;
+    text-align: center;
+    font-size: 0.75em;
+    color: #6b7280 !important;
+    font-weight: 600;
+    margin-top: 5px;
+}
+
+/* 9. GAUGES */
+.gauge-container {
+    margin-bottom: 16px;
+}
+.gauge-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9em;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text-color) !important;
+}
+.gauge-bg {
+    height: 12px;
+    background: #f3f4f6;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.gauge-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #fcd34d, #ea580c);
+    border-radius: 6px;
+    transition: width 1s ease-out;
+}
+
+/* 10. SCENARIOS */
+.scenario-card {
+    background: var(--bg-color); /* S'adapte */
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px 12px;
+    text-align: center;
+    height: 100%;
+    transition: transform 0.2s;
+}
+.scenario-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--primary-color);
+}
+.scenario-title {
+    font-weight: 800;
+    color: var(--text-color) !important;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    font-size: 0.85em;
+}
+.scenario-cost {
+    font-size: 0.8em;
+    color: #6b7280 !important;
+    margin-bottom: 6px;
+}
+.scenario-result {
+    font-weight: 700;
+    color: var(--primary-color) !important;
+    font-size: 0.95em;
+}
+
+/* 11. TABLES */
+.styled-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95em;
+}
+.styled-table td {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color) !important;
+}
+.styled-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* 12. BADGES */
+.verdict-badge {
+    padding: 8px 16px;
+    border-radius: 100px;
+    font-weight: 700;
+    font-size: 0.9em;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+.bg-green { background-color: #10b981; }
+.bg-orange { background-color: #f59e0b; }
+.bg-red { background-color: #ef4444; }
+
+/* 13. RESPONSIVE */
+@media only screen and (max-width: 600px) {
+    .main .block-container {
+        padding-top: 2rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-bottom: 100px !important;
+    }
+    h1 {
+        font-size: 1.6rem !important;
+    }
+}
