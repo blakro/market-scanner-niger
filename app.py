@@ -342,6 +342,7 @@ def clean_json_response(text):
     return text.strip()
 
 # --- SCANNER AUTO ---
+@st.cache_data(ttl=3600, show_spinner=False)
 def find_best_model_dynamic():
     try:
         available_models = []
