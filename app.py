@@ -6,6 +6,7 @@ from datetime import datetime
 import time
 import json
 import re
+import html
 # Imports pour Google Sheets
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
@@ -31,20 +32,20 @@ st.markdown("""
 
     /* 2. COULEURS TEXTE GLOBALES (Noir force) */
     h1, h2, h3, h4, h5, h6, p, span, div, label, li, td, th {
-        color: #1f2937 !important; 
+        color: #1f2937 !important;
     }
-    
+
     /* 3. CORRECTION CRITIQUE INPUTS (PRIX INVISIBLE) */
     /* Force le fond blanc et texte noir pour le champ Prix, même en Dark Mode */
     .stNumberInput input {
         background-color: #ffffff !important;
-        color: #000000 !important; 
+        color: #000000 !important;
         -webkit-text-fill-color: #000000 !important; /* Pour Safari/iOS */
         border: 1px solid #d1d5db !important;
         caret-color: #ea580c !important; /* Curseur orange */
         font-weight: 700 !important;
     }
-    
+
     /* Boutons + et - du NumberInput */
     .stNumberInput button {
         background-color: #f3f4f6 !important;
@@ -81,7 +82,7 @@ st.markdown("""
     }
     /* Le texte "Drag and drop..." */
     div[data-testid="stFileUploader"] section > div {
-        color: #4b5563 !important; 
+        color: #4b5563 !important;
     }
     /* Le petit bouton "Browse files" */
     div[data-testid="stFileUploader"] button {
@@ -105,7 +106,7 @@ st.markdown("""
         background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
         background-size: 20px 20px;
     }
-    
+
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -119,7 +120,7 @@ st.markdown("""
         margin-bottom: 20px;
         border: 1px solid #f3f4f6;
     }
-    
+
     /* TITRES */
     h1 {
         font-weight: 800 !important;
@@ -139,7 +140,7 @@ st.markdown("""
         border-bottom: 2px solid #fff7ed;
         padding-bottom: 5px;
     }
-    
+
     /* CERCLE DE SCORE */
     .score-circle-container {
         display: flex;
@@ -266,7 +267,7 @@ st.markdown("""
         text-transform: uppercase;
         box-shadow: 0 4px 12px rgba(234, 88, 12, 0.2);
     }
-    
+
     /* CORRECTION BOUTON CAMÉRA (Orange et Lisible) */
     div[data-testid="stCameraInput"] button {
         background-color: #ea580c !important;
@@ -306,7 +307,7 @@ def save_data_to_sheets(furniture_type, price, score, verdict):
     try:
         # 1. Connexion
         conn = st.connection("gsheets", type=GSheetsConnection)
-        
+
         # 2. Préparation de la nouvelle ligne
         new_data = pd.DataFrame([{
             "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -315,7 +316,7 @@ def save_data_to_sheets(furniture_type, price, score, verdict):
             "Score_Global": score,
             "Verdict_IA": verdict
         }])
-        
+
         # 3. Lecture et Mise à jour (AVEC FIX CACHE TTL=0)
         try:
             existing_data = conn.read(worksheet="Sheet1", ttl=0)
@@ -325,10 +326,10 @@ def save_data_to_sheets(furniture_type, price, score, verdict):
                  updated_data = pd.concat([existing_data, new_data], ignore_index=True)
         except:
             updated_data = new_data
-            
+
         # 4. Envoi
         conn.update(worksheet="Sheet1", data=updated_data)
-        
+
     except Exception:
         # Silencieux pour l'utilisateur
         pass
@@ -348,7 +349,7 @@ def find_best_model_dynamic():
         for m in genai.list_models():
             if 'generateContent' in m.supported_generation_methods:
                 available_models.append(m.name)
-        
+
         if not available_models: return None, "Aucun modèle trouvé."
 
         for m in available_models:
@@ -363,16 +364,16 @@ def find_best_model_dynamic():
 def analyze_image_pro(image, price, api_key):
     genai.configure(api_key=api_key)
     model_name, scan_error = find_best_model_dynamic()
-    
+
     if not model_name: return None, scan_error
-    
+
     prompt = f"""
     Tu es un expert menuisier à Niamey. Analyse ce meuble (Prix: {price} FCFA).
-    
+
     Liste des objets acceptés : Canapé, fauteuil, table basse, meuble TV, lit, armoire, commode, chevet, table à manger, chaise, buffet, bureau, bibliothèque, console, meuble à chaussures, dressing, lit superposé, canapé-lit, banquette, table de cuisine, tabouret, meuble sous-vasque.
-    
+
     Si l'objet n'est PAS un meuble de cette liste (ou similaire), renvoie {{"is_furniture": false}}.
-    
+
     Sinon, renvoie un JSON valide :
     {{
         "is_furniture": true,
@@ -400,7 +401,7 @@ def analyze_image_pro(image, price, api_key):
     }}
     NOTE: Les scores sont sur 100.
     """
-    
+
     try:
         model = genai.GenerativeModel(model_name)
         response = model.generate_content([prompt, image])
@@ -459,10 +460,10 @@ if is_ready:
         else:
             image = Image.open(img_file_buffer)
             st.image(image, width=120)
-            
+
             with st.spinner("🔍 Analyse visuelle approfondie..."):
                 json_str, info_msg = analyze_image_pro(image, price_input, api_key)
-            
+
             if not json_str:
                 st.error("Erreur technique.")
                 st.caption(info_msg)
@@ -488,10 +489,10 @@ if is_ready:
                         # SCORE CIRCULAIRE
                         scores = data.get('scores', {})
                         global_score = scores.get('global', 50)
-                        
+
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
                         st.markdown('<div class="tech-header">📊 Performance</div>', unsafe_allow_html=True)
-                        
+
                         st.markdown(f"""
                         <div class="score-circle-container">
                             <div class="score-circle" style="--percent: {global_score}%">
@@ -508,7 +509,7 @@ if is_ready:
                             ("💎 Qualité Matériaux", scores.get('materiaux', 0)),
                             ("🛠️ Facilité Restauration", scores.get('restauration', 0))
                         ]
-                        
+
                         for label, val in gauges:
                             st.markdown(f"""
                             <div class="gauge-container">
@@ -528,14 +529,19 @@ if is_ready:
                         st.markdown('<div class="tech-header">🧬 Composition</div>', unsafe_allow_html=True)
                         html_table = '<table class="styled-table"><tbody>'
                         for row in data.get('composition_materiau', []):
-                            html_table += f"<tr><td width='30%'><b>{row['couche']}</b></td><td>{row['compo']} <br><small style='color:#ea580c'>{row['etat']}</small></td></tr>"
+                            couche_safe = html.escape(str(row.get('couche', '')))
+                            compo_safe = html.escape(str(row.get('compo', '')))
+                            etat_safe = html.escape(str(row.get('etat', '')))
+                            html_table += f"<tr><td width='30%'><b>{couche_safe}</b></td><td>{compo_safe} <br><small style='color:#ea580c'>{etat_safe}</small></td></tr>"
                         html_table += "</tbody></table>"
                         st.markdown(html_table, unsafe_allow_html=True)
-                        
+
+                        menuisier_safe = html.escape(str(data.get('avis_menuisier', '')))
+                        tapissier_safe = html.escape(str(data.get('avis_tapissier', '')))
                         st.markdown(f"""
                         <div style="margin-top:15px; padding:15px; background:#f9fafb; border-radius:10px; font-size:0.9em; border-left: 3px solid #ea580c;">
-                            🪑 <b>Menuisier :</b> {data.get('avis_menuisier')}<br><br>
-                            🧵 <b>Tapissier :</b> {data.get('avis_tapissier')}
+                            🪑 <b>Menuisier :</b> {menuisier_safe}<br><br>
+                            🧵 <b>Tapissier :</b> {tapissier_safe}
                         </div>
                         """, unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
@@ -543,7 +549,7 @@ if is_ready:
                         # SCÉNARIOS
                         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
                         st.markdown('<div class="tech-header">⚖️ Scénarios</div>', unsafe_allow_html=True)
-                        
+
                         scenarios = data.get('scenarios', [])
                         cols = st.columns(3)
                         for i, col in enumerate(cols):
@@ -566,7 +572,7 @@ if is_ready:
                             <p style="color:#065f46; margin:0; font-weight:600;">{data.get('recommandation_finale')}</p>
                         </div>
                         """, unsafe_allow_html=True)
-                        
+
                         # === SAUVEGARDE VERS SHEETS (FINAL) ===
                         save_data_to_sheets(data.get('titre'), price_input, global_score, data.get('verdict_prix'))
 
