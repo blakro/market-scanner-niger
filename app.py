@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import google.generativeai as genai
 from PIL import Image
 import os
@@ -535,10 +536,15 @@ if "widget_version" not in st.session_state:
     st.session_state.widget_version = 0
 if "last_analysis" not in st.session_state:
     st.session_state.last_analysis = None
+if "processing" not in st.session_state:
+    st.session_state.processing = False
+if "scroll_to_result" not in st.session_state:
+    st.session_state.scroll_to_result = False
 
 def reset_analysis():
     """Efface le résultat et force le reset des widgets (photo, prix)."""
     st.session_state.last_analysis = None
+    st.session_state.processing = False
     st.session_state.widget_version += 1
     st.rerun()
 
@@ -1003,41 +1009,37 @@ def render_result(result):
         reset_analysis()
 
 
-# --- BOUTON D'ANALYSE (toujours visible, disabled si pas prêt) ---
+# --- BOUTON D'ANALYSE (toujours visible, disabled si pas prêt ou en cours) ---
 launch_clicked = st.button(
     "🔍 Lancer l'analyse",
-    disabled=not is_ready,
+    disabled=not is_ready or st.session_state.processing,
     use_container_width=True
 )
 
-if launch_clicked and is_ready:
+# Un clic passe d'abord en état "processing" + rerun immédiat : le bouton se
+# grise et le spinner apparaît tout de suite, avant même l'appel (bloquant) à
+# l'IA. Ça évite aussi les doubles clics qui déclencheraient deux appels payants.
+if launch_clicked and is_ready and not st.session_state.processing:
+    st.session_state.processing = True
+    st.rerun()
+
+if st.session_state.processing:
     if not api_key:
         st.error("⚠️ Clé API manquante. Ouvrez la section Configuration ci-dessus.")
+        st.session_state.processing = False
     else:
         image = Image.open(img_file_buffer)
 
-        # Progression multi-étapes simulée
-        progress_placeholder = st.empty()
-        steps = [
-            "🔎 Reconnaissance de l'objet...",
-            "🧬 Analyse des matériaux et de la structure...",
-            "⚖️ Comparaison aux prix du marché nigérien...",
-            "✍️ Génération du rapport d'expertise..."
-        ]
-        for step in steps[:-1]:
-            progress_placeholder.markdown(
-                f'<div style="text-align:center; color:#ea580c; font-weight:600; padding:8px;">{step}</div>',
-                unsafe_allow_html=True
-            )
-            time.sleep(0.35)
-
-        progress_placeholder.markdown(
-            f'<div style="text-align:center; color:#ea580c; font-weight:600; padding:8px;">{steps[-1]}</div>',
-            unsafe_allow_html=True
-        )
-        with st.spinner(""):
+        # Étapes affichées pendant le vrai temps d'attente de l'IA (pas de délai artificiel)
+        with st.status("🔎 Analyse de votre meuble...", expanded=True) as status_box:
+            st.write("🔎 Reconnaissance de l'objet...")
+            st.write("🧬 Analyse des matériaux et de la structure...")
+            st.write("⚖️ Comparaison aux prix du marché nigérien...")
             json_str, info_msg = analyze_image_pro(image, price_input, api_key)
-        progress_placeholder.empty()
+            if json_str:
+                status_box.update(label="✅ Rapport d'expertise généré", state="complete", expanded=False)
+            else:
+                status_box.update(label="❌ Échec de l'analyse", state="error", expanded=False)
 
         if not json_str:
             st.session_state.last_analysis = {
@@ -1066,8 +1068,26 @@ if launch_clicked and is_ready:
                     "status": "json_error", "image": image, "price": price_input
                 }
 
+        st.session_state.processing = False
+        st.session_state.scroll_to_result = True
+
+    st.rerun()
+
 if st.session_state.last_analysis:
+    st.markdown('<div id="result-top"></div>', unsafe_allow_html=True)
     render_result(st.session_state.last_analysis)
+    if st.session_state.pop("scroll_to_result", False):
+        components.html(
+            """
+            <script>
+                setTimeout(function() {
+                    var el = window.parent.document.getElementById('result-top');
+                    if (el) { el.scrollIntoView({behavior: 'smooth', block: 'start'}); }
+                }, 150);
+            </script>
+            """,
+            height=0,
+        )
 
 # --- FOOTER ---
 st.markdown("""
