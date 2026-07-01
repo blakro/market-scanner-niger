@@ -9,20 +9,25 @@ Que vous soyez au marché de **Katako**, à **Wadata**, ou sur **Facebook Market
 
 ## **✨ Fonctionnalités Clés**
 
-* 📸 **Double Mode d'Entrée** : Prenez une photo directement sur le terrain (Caméra) ou importez depuis votre galerie.  
-* 🧠 **Cerveau IA Hybride** : Scanne automatiquement les modèles disponibles (Flash/Pro) pour fonctionner même si le réseau est instable.  
+* 📸 **Analyse Multi-Angles** : Prenez une photo (Caméra) ou importez jusqu'à 3 photos depuis votre galerie pour croiser les angles et affiner le diagnostic.  
+* 🧠 **Cerveau IA Hybride** : Scanne automatiquement les modèles disponibles (Flash/Pro), avec mise en cache du modèle pour des analyses plus rapides.  
 * 🧬 **Analyse Matériaux Profonde** : Révèle la "vérité" sous le vernis (Vrai cuir vs Simili, Bois massif vs Contreplaqué).  
 * 🛡️ **Filtre Intelligent** : Rejette automatiquement les photos qui ne sont pas des meubles (Motos, Animaux, etc.).  
 * ⚖️ **Matrice de Décision** : Tableaux comparatifs clairs pour vous aider à décider : Réparer, Négocier ou Laisser tomber ?  
-* 🎨 **Design Futuriste** : Une interface moderne et fluide aux couleurs chaudes du Niger.
+* 🕘 **Historique de Session** : Retrouvez vos 5 dernières analyses, revoyez un rapport ou téléchargez le récapitulatif.  
+* 🌗 **Mode Sombre Automatique** : L'interface s'adapte aux préférences de votre téléphone ou navigateur.  
+* 📤 **Partage en 1 Clic** : Partagez ou copiez votre rapport (partage natif mobile avec repli presse-papier).  
+* 👍 **Feedback Utilisateur** : Donnez votre avis sur la pertinence de chaque verdict.  
+* 📐 **Guide de Cadrage** : Des conseils intégrés pour prendre une photo qui donne les meilleurs résultats.  
+* 🎨 **Design Moderne & Fluide** : Interface épurée aux couleurs chaudes du Niger, responsive du mobile au desktop.
 
 ## **🚀 Comment l'utiliser ?**
 
 1. **Accédez à l'app** : [market-scanner-niger.streamlit.app](https://www.google.com/search?q=https://market-scanner-niger.streamlit.app)  
-2. **Choisissez votre mode** : Onglet **📸 Prendre Photo** ou **📂 Galerie**.  
+2. **Choisissez votre mode** : Onglet **📸 Prendre Photo** ou **📂 Galerie** (jusqu'à 3 photos).  
 3. **Entrez le prix** proposé par le vendeur (en FCFA).  
-4. Cliquez sur **SCANNER LE MEUBLE**.  
-5. Recevez votre audit technique complet en quelques secondes.
+4. Cliquez sur **🔍 Lancer l'analyse**.  
+5. Recevez votre audit technique complet en quelques secondes, partagez-le ou donnez votre avis avec 👍/👎.
 
 ## **🛠️ Installation Locale (Pour les développeurs)**
 
