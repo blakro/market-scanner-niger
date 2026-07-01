@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import google.generativeai as genai
 from PIL import Image
 import os
@@ -527,14 +528,123 @@ st.markdown("""
         .score-value { font-size: 1.6em; }
         .price-compare { grid-template-columns: 1fr; }
     }
+
+    /* DESKTOP : un peu plus de largeur pour respirer sur grand écran */
+    @media only screen and (min-width: 1024px) {
+        .main .block-container {
+            max-width: 900px !important;
+        }
+    }
+
+    /* SKELETON LOADER (pendant l'analyse) */
+    .skeleton-shimmer {
+        background: linear-gradient(90deg, #eef0f2 25%, #f7f8fa 50%, #eef0f2 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.4s infinite;
+        border-radius: 8px;
+    }
+    @keyframes shimmer {
+        0%   { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    .skeleton-line { height: 14px; margin-bottom: 12px; }
+    .skeleton-line:last-child { margin-bottom: 0; }
+
+    /* MODE SOMBRE (auto, basé sur les préférences système) */
+    @media (prefers-color-scheme: dark) {
+        :root { color-scheme: dark; }
+
+        .stApp {
+            background-color: #0f172a;
+            background-image: radial-gradient(#1e293b 1px, transparent 1px);
+        }
+        h1, h2, h3, h4, h5, h6, p, span, div, label, li, td, th {
+            color: #e5e7eb !important;
+        }
+        .stCaption, div[data-testid="stCaptionContainer"] p {
+            color: #94a3b8 !important;
+        }
+        .tech-card, .scenario-card, .price-box {
+            background: #1e293b;
+            border-color: #334155;
+        }
+        .tech-card { box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+        .price-box.highlight { background: #3a2a1a; border-color: #ea580c; }
+        .styled-table td { border-bottom-color: #334155; }
+        .skeleton-shimmer {
+            background: linear-gradient(90deg, #1e293b 25%, #273449 50%, #1e293b 75%);
+            background-size: 200% 100%;
+        }
+        .stTabs [data-baseweb="tab-list"] {
+            background-color: #1e293b;
+            border-color: #334155;
+        }
+        .stTabs [data-baseweb="tab"]:hover { background-color: #273449 !important; }
+        .stTabs [aria-selected="true"] { background-color: #3a2412 !important; }
+        div[data-testid="stFileUploader"] {
+            background-color: #1e293b;
+            border-color: #334155;
+        }
+        div[data-testid="stFileUploader"] button {
+            background-color: #0f172a !important;
+            color: #e5e7eb !important;
+            border-color: #334155 !important;
+        }
+        .info-chip {
+            background: #1e2f4d;
+            border-color: #2c4a75;
+            color: #cfe2ff !important;
+        }
+        .info-chip b { color: #cfe2ff !important; }
+        button[kind="secondary"] {
+            background: #1e293b !important;
+        }
+        .streamlit-expanderHeader, div[data-testid="stExpander"] {
+            background-color: #1e293b !important;
+            border-color: #334155 !important;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
 
+# META TAGS MOBILE (couleur de barre d'adresse + ajout à l'écran d'accueil "app-like")
+components.html("""
+<script>
+(function() {
+    const head = window.parent.document.head;
+    function addMeta(name, content) {
+        if (head.querySelector(`meta[name="${name}"]`)) return;
+        const m = document.createElement('meta');
+        m.name = name;
+        m.content = content;
+        head.appendChild(m);
+    }
+    addMeta('theme-color', '#ea580c');
+    addMeta('apple-mobile-web-app-capable', 'yes');
+    addMeta('apple-mobile-web-app-status-bar-style', 'black-translucent');
+    addMeta('apple-mobile-web-app-title', 'Gaskiyar Kaya');
+})();
+</script>
+""", height=0)
+
 # --- ÉTAT DE SESSION ---
-if "analysis_result" not in st.session_state:
-    st.session_state.analysis_result = None
-if "analyzed_img" not in st.session_state:
-    st.session_state.analyzed_img = None
+if "widget_version" not in st.session_state:
+    st.session_state.widget_version = 0
+if "last_analysis" not in st.session_state:
+    st.session_state.last_analysis = None
+if "processing" not in st.session_state:
+    st.session_state.processing = False
+if "scroll_to_result" not in st.session_state:
+    st.session_state.scroll_to_result = False
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+def reset_analysis():
+    """Efface le résultat et force le reset des widgets (photo, prix)."""
+    st.session_state.last_analysis = None
+    st.session_state.processing = False
+    st.session_state.widget_version += 1
+    st.rerun()
 
 # --- API KEY ---
 api_key = None
@@ -591,8 +701,50 @@ def score_color(score):
         return "#f59e0b", "#fef3c7"  # orange
     return "#ef4444", "#fee2e2"      # rouge
 
+def render_preview(images):
+    """Affiche 1 à 3 photos : une seule photo centrée, ou une rangée de miniatures."""
+    if not images:
+        return
+    if len(images) == 1:
+        st.markdown('<div class="preview-wrap">', unsafe_allow_html=True)
+        st.image(images[0], width=220)
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        cols = st.columns(len(images))
+        for c, img in zip(cols, images):
+            with c:
+                st.image(img, use_container_width=True)
+
+def prepare_image_for_ai(image, max_dim=1280):
+    """Redimensionne l'image (photos de téléphone souvent énormes) pour un envoi
+    plus rapide et moins coûteux à l'IA, sans perte visible à cette résolution."""
+    img = image.copy()
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+    return img
+
+def friendly_error_message(raw_msg):
+    """Traduit une erreur technique (Gemini/réseau) en message compréhensible."""
+    msg = str(raw_msg or "")
+    low = msg.lower()
+    if "api key not valid" in low or "api_key_invalid" in low:
+        return "Clé API invalide. Vérifiez-la dans la section Configuration ci-dessus."
+    if "429" in msg or "quota" in low or "surcharge" in low:
+        return "Le service IA est momentanément surchargé. Réessayez dans quelques secondes."
+    if "timeout" in low or "deadline" in low:
+        return "La connexion a pris trop de temps. Vérifiez votre réseau et réessayez."
+    if "network" in low or "connection" in low or "resolve" in low:
+        return "Problème de connexion réseau. Vérifiez votre connexion internet."
+    return "Une erreur inattendue s'est produite pendant l'analyse. Réessayez avec une photo plus nette."
+
 # --- SCANNER MODÈLES GEMINI ---
-def find_best_model_dynamic():
+def find_best_model_dynamic(api_key):
+    # Le modèle disponible ne change pas en cours de session : on évite de
+    # rappeler list_models() (aller-retour réseau) à chaque nouvelle analyse.
+    cached = st.session_state.get("gemini_model_cache")
+    if cached and cached.get("api_key") == api_key:
+        return cached["model"], None
     try:
         available_models = []
         for m in genai.list_models():
@@ -600,25 +752,33 @@ def find_best_model_dynamic():
                 available_models.append(m.name)
         if not available_models:
             return None, "Aucun modèle trouvé."
+        chosen = None
         for m in available_models:
             if 'flash' in m.lower():
-                return m, None
-        for m in available_models:
-            if 'pro' in m.lower() and 'vision' not in m.lower():
-                return m, None
-        return available_models[0], None
+                chosen = m
+                break
+        if not chosen:
+            for m in available_models:
+                if 'pro' in m.lower() and 'vision' not in m.lower():
+                    chosen = m
+                    break
+        chosen = chosen or available_models[0]
+        st.session_state.gemini_model_cache = {"api_key": api_key, "model": chosen}
+        return chosen, None
     except Exception as e:
         return "models/gemini-1.5-flash", str(e)
 
 # --- ANALYSE IA ---
-def analyze_image_pro(image, price, api_key):
+def analyze_image_pro(images, price, api_key):
     genai.configure(api_key=api_key)
-    model_name, scan_error = find_best_model_dynamic()
+    model_name, scan_error = find_best_model_dynamic(api_key)
     if not model_name:
         return None, scan_error
 
     prompt = f"""
     Tu es un expert menuisier à Niamey (Niger). Analyse ce meuble (Prix demandé : {price} FCFA).
+    Tu reçois une ou plusieurs photos du même meuble (jusqu'à 3 angles différents) : croise les
+    informations entre les photos pour affiner ton diagnostic (structure, matériaux, défauts).
 
     Liste des objets acceptés : Canapé, fauteuil, table basse, meuble TV, lit, armoire, commode, chevet, table à manger, chaise, buffet, bureau, bibliothèque, console, meuble à chaussures, dressing, lit superposé, canapé-lit, banquette, table de cuisine, tabouret, meuble sous-vasque.
 
@@ -658,13 +818,13 @@ def analyze_image_pro(image, price, api_key):
 
     try:
         model = genai.GenerativeModel(model_name)
-        response = model.generate_content([prompt, image])
+        response = model.generate_content([prompt, *images])
         return clean_json_response(response.text), model_name
     except Exception as e:
         if "429" in str(e):
             time.sleep(2)
             try:
-                response = model.generate_content([prompt, image])
+                response = model.generate_content([prompt, *images])
                 return clean_json_response(response.text), model_name
             except Exception:
                 return None, "Surcharge serveur"
@@ -683,27 +843,72 @@ st.markdown("""
 st.markdown("""
 <div class="info-chip">
     <span style="font-size:1.2em;">ℹ️</span>
-    <div><b>Une seule photo bien cadrée suffit.</b> JPG · PNG · WEBP · Max 200 Mo</div>
+    <div><b>Une photo suffit</b>, ajoutez jusqu'à 3 angles pour une analyse plus précise. JPG · PNG · WEBP</div>
 </div>
 """, unsafe_allow_html=True)
 
+with st.expander("📐 Conseils pour une photo réussie"):
+    st.markdown("""
+- ✅ **Lumière naturelle** : évitez le flash direct qui écrase les détails.
+- ✅ Cadrez **tout le meuble**, y compris les pieds et les angles.
+- ✅ Ajoutez une **photo de détail** (rayure, tissu, assemblage) si vous le pouvez.
+- ❌ Évitez les photos floues ou prises de trop loin.
+- ❌ Évitez les arrière-plans encombrés qui perturbent l'analyse.
+""")
+
+# --- HISTORIQUE DE SESSION ---
+if st.session_state.history:
+    with st.expander(f"🕘 Historique de cette session ({len(st.session_state.history)})"):
+        for i, entry in enumerate(st.session_state.history):
+            v = entry["verdict"]
+            badge = "🟢" if "Affaire" in v else ("🟠" if "Correct" in v else "🔴")
+            col_h1, col_h2 = st.columns([4, 1])
+            with col_h1:
+                st.markdown(
+                    f"{badge} **{html.escape(entry['titre'])}** — "
+                    f"{fmt_fcfa(entry['price'])} · Score {entry['score']}% · {entry['timestamp']}"
+                )
+            with col_h2:
+                if st.button("Revoir", key=f"hist_{i}", use_container_width=True):
+                    st.session_state.last_analysis = entry["snapshot"]
+                    st.session_state.scroll_to_result = True
+                    st.rerun()
+        st.caption("Historique valable uniquement pour cette session de navigateur (non partagé, non sauvegardé).")
+        history_text = "\n\n".join(
+            f"{e['timestamp']} - {e['titre']} - {fmt_fcfa(e['price'])} - "
+            f"Score {e['score']}% - Verdict : {e['verdict']}"
+            for e in st.session_state.history
+        )
+        st.download_button(
+            "⬇️ Télécharger l'historique",
+            data=history_text,
+            file_name="gaskiyar_kaya_historique.txt",
+            mime="text/plain",
+            use_container_width=True,
+        )
+
 # --- CAPTURE IMAGE ---
+wv = st.session_state.widget_version
 tab_cam, tab_upload = st.tabs(["📸 Prendre Photo", "📂 Galerie"])
-img_file_buffer = None
+img_files = []
 
 with tab_cam:
-    camera_img = st.camera_input("Cadrez le meuble", label_visibility="collapsed")
+    camera_img = st.camera_input("Cadrez le meuble", label_visibility="collapsed", key=f"camera_{wv}")
     if camera_img:
-        img_file_buffer = camera_img
+        img_files = [camera_img]
 
 with tab_upload:
-    upload_img = st.file_uploader(
-        "Choisir une image",
+    upload_imgs = st.file_uploader(
+        "Choisir une ou plusieurs images (max 3 angles)",
         type=["jpg", "png", "jpeg", "webp"],
-        label_visibility="collapsed"
+        accept_multiple_files=True,
+        label_visibility="collapsed",
+        key=f"upload_{wv}"
     )
-    if upload_img:
-        img_file_buffer = upload_img
+    if upload_imgs:
+        img_files = upload_imgs[:3]
+        if len(upload_imgs) > 3:
+            st.caption("⚠️ Seules les 3 premières photos seront analysées.")
 
 # --- PRIX ---
 st.markdown("<br>", unsafe_allow_html=True)
@@ -718,7 +923,8 @@ price_input = st.number_input(
     value=0,
     format="%d",
     label_visibility="collapsed",
-    help="Entrez le prix proposé par le vendeur pour comparer à l'estimation IA."
+    help="Entrez le prix proposé par le vendeur pour comparer à l'estimation IA.",
+    key=f"price_{wv}"
 )
 if price_input > 0:
     st.markdown(
@@ -726,9 +932,13 @@ if price_input > 0:
         f'Soit <b style="color:#ea580c;">{fmt_fcfa(price_input)}</b></div>',
         unsafe_allow_html=True
     )
+    if price_input < 500:
+        st.caption("⚠️ Ce prix semble très bas, vérifiez qu'il est bien exprimé en FCFA.")
+    elif price_input > 3_000_000:
+        st.caption("⚠️ Ce prix semble très élevé pour un meuble d'occasion, vérifiez votre saisie.")
 
 # --- ÉTAT PRÊT ---
-has_image = img_file_buffer is not None
+has_image = len(img_files) > 0
 has_price = price_input > 0
 is_ready = has_image and has_price
 
@@ -760,272 +970,384 @@ elif has_price and not has_image:
         unsafe_allow_html=True
     )
 
-# --- BOUTON D'ANALYSE (toujours visible, disabled si pas prêt) ---
+# --- RENDU DU RÉSULTAT (persistant via session_state) ---
+def render_result(result):
+    status = result["status"]
+    images = result.get("images") or []
+    price_for_render = result.get("price", 0)
+
+    render_preview(images)
+
+    if status == "error":
+        raw_msg = str(result.get("error_msg") or "")
+        st.markdown(
+            f'<div class="tech-card" style="background:#fef2f2; border-color:#fecaca;">'
+            f'<div style="color:#b91c1c !important; font-weight:700;">❌ Analyse impossible</div>'
+            f'<div style="color:#991b1b !important; font-size:0.9em; margin-top:4px;">{html.escape(friendly_error_message(raw_msg))}</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+        if raw_msg:
+            with st.expander("Détails techniques"):
+                st.code(raw_msg, language=None)
+    elif status == "not_furniture":
+        st.markdown(
+            '<div class="tech-card" style="background:#fef2f2; border-color:#fecaca;">'
+            '<div style="color:#b91c1c !important; font-weight:700; font-size:1.05em;">🛑 Objet non reconnu</div>'
+            '<div style="color:#7f1d1d !important; font-size:0.9em; margin-top:6px;">'
+            'Objets acceptés : Tables, Lits, Canapés, Armoires, Fauteuils, Commodes, Bureaux, Chaises...'
+            '</div></div>',
+            unsafe_allow_html=True
+        )
+    elif status == "json_error":
+        st.markdown(
+            '<div class="tech-card" style="background:#fef2f2; border-color:#fecaca;">'
+            '<div style="color:#b91c1c !important; font-weight:700;">❌ Erreur de lecture</div>'
+            '<div style="color:#991b1b !important; font-size:0.85em; margin-top:4px;">'
+            'L\'IA a renvoyé un format inattendu. Réessayez avec une photo plus nette.'
+            '</div></div>',
+            unsafe_allow_html=True
+        )
+    elif status == "success":
+        data = result["data"]
+
+        # === VERDICT HERO (bannière top) ===
+        v_raw = data.get('verdict_prix', 'N/A')
+        titre_safe = html.escape(str(data.get('titre', '')))
+        style_safe = html.escape(str(data.get('style', '')))
+
+        if "Affaire" in v_raw:
+            vh_class, vh_icon, vh_sub = "vh-green", "🎯", "Bonne affaire à saisir"
+        elif "Correct" in v_raw:
+            vh_class, vh_icon, vh_sub = "vh-orange", "⚖️", "Prix cohérent, possibilité de négocier"
+        else:
+            vh_class, vh_icon, vh_sub = "vh-red", "⚠️", "Prix élevé, négociez ferme"
+
+        st.markdown(f"""
+        <div class="verdict-hero {vh_class}">
+            <div class="big-icon">{vh_icon}</div>
+            <div style="flex:1;">
+                <p class="v-title">{html.escape(str(v_raw))}</p>
+                <p class="v-sub">{vh_sub}</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # === IDENTITÉ MEUBLE ===
+        st.markdown('<div class="tech-card">', unsafe_allow_html=True)
+        st.markdown(
+            f"<h3 style='margin:0 0 4px 0; font-size:1.35em; font-weight:800'>{titre_safe}</h3>"
+            f"<span style='color:#6b7280; font-size:0.9em; font-weight:500'>{style_safe}</span>",
+            unsafe_allow_html=True
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # === COMPARATEUR PRIX ===
+        prix_min = data.get('prix_estime_min')
+        prix_max = data.get('prix_estime_max')
+        if prix_min and prix_max:
+            try:
+                prix_min_i = int(prix_min)
+                prix_max_i = int(prix_max)
+                prix_mid = (prix_min_i + prix_max_i) // 2
+                delta = price_for_render - prix_mid
+                pct = (delta / prix_mid) * 100 if prix_mid else 0
+
+                if price_for_render <= prix_max_i and price_for_render >= prix_min_i:
+                    delta_class = "delta-good"
+                    delta_text = f"✅ Dans la fourchette du marché"
+                elif price_for_render < prix_min_i:
+                    delta_class = "delta-good"
+                    delta_text = f"🎯 Sous le marché ({abs(pct):.0f}% moins cher)"
+                else:
+                    delta_class = "delta-bad" if pct > 25 else "delta-neutral"
+                    delta_text = f"⚠️ Au-dessus du marché (+{pct:.0f}%)"
+
+                st.markdown('<div class="tech-card">', unsafe_allow_html=True)
+                st.markdown('<div class="tech-header">💸 Comparateur Prix</div>', unsafe_allow_html=True)
+                st.markdown(f"""
+                <div class="price-compare">
+                    <div class="price-box">
+                        <div class="pb-label">Prix demandé</div>
+                        <div class="pb-value">{fmt_fcfa(price_for_render)}</div>
+                    </div>
+                    <div class="price-box highlight">
+                        <div class="pb-label">Estimation IA</div>
+                        <div class="pb-value">{fmt_fcfa(prix_min_i)} – {fmt_fcfa(prix_max_i).replace(' FCFA','')}</div>
+                    </div>
+                </div>
+                <div class="price-delta {delta_class}">{delta_text}</div>
+                """, unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+            except (ValueError, TypeError):
+                pass
+
+        # === PERFORMANCE (score circle + jauges dynamiques) ===
+        scores = data.get('scores', {})
+        global_score = int(scores.get('global', 50))
+        col_main, col_bg = score_color(global_score)
+
+        st.markdown('<div class="tech-card">', unsafe_allow_html=True)
+        st.markdown('<div class="tech-header">📊 Performance</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="score-circle-container">
+            <div class="score-circle" style="background: conic-gradient({col_main} {global_score}%, #f3f4f6 0);">
+                <div style="position:absolute; text-align:center;">
+                    <div class="score-value" style="color:{col_main};">{global_score}%</div>
+                    <span class="score-label">ÉTAT GLOBAL</span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        gauges = [
+            ("🧱 Solidité Structurelle", int(scores.get('solidite', 0))),
+            ("💎 Qualité Matériaux",     int(scores.get('materiaux', 0))),
+            ("🛠️ Facilité Restauration", int(scores.get('restauration', 0))),
+        ]
+        for label, val in gauges:
+            g_col, _ = score_color(val)
+            st.markdown(f"""
+            <div class="gauge-container">
+                <div class="gauge-label">
+                    <span>{label}</span>
+                    <span style="color:{g_col};">{val}%</span>
+                </div>
+                <div class="gauge-bg">
+                    <div class="gauge-fill" style="width: {val}%; background: linear-gradient(90deg, {g_col}99, {g_col});"></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # === COMPOSITION MATÉRIAUX ===
+        st.markdown('<div class="tech-card">', unsafe_allow_html=True)
+        st.markdown('<div class="tech-header">🧬 Composition</div>', unsafe_allow_html=True)
+        html_table = '<table class="styled-table"><tbody>'
+        for row in data.get('composition_materiau', []):
+            couche_safe = html.escape(str(row.get('couche', '')))
+            compo_safe = html.escape(str(row.get('compo', '')))
+            etat_safe = html.escape(str(row.get('etat', '')))
+            html_table += (
+                f"<tr><td width='30%'><b>{couche_safe}</b></td>"
+                f"<td>{compo_safe}<br><small style='color:#ea580c'>{etat_safe}</small></td></tr>"
+            )
+        html_table += "</tbody></table>"
+        st.markdown(html_table, unsafe_allow_html=True)
+
+        avis_menuisier_safe = html.escape(str(data.get('avis_menuisier', '')))
+        avis_tapissier_safe = html.escape(str(data.get('avis_tapissier', '')))
+        st.markdown(f"""
+        <div style="margin-top:14px; padding:14px; background:#f9fafb; border-radius:10px;
+                     font-size:0.9em; border-left: 3px solid #ea580c;">
+            🪑 <b>Menuisier :</b> {avis_menuisier_safe}<br><br>
+            🧵 <b>Tapissier :</b> {avis_tapissier_safe}
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # === SCÉNARIOS ===
+        st.markdown('<div class="tech-card">', unsafe_allow_html=True)
+        st.markdown('<div class="tech-header">⚖️ Scénarios d\'Action</div>', unsafe_allow_html=True)
+        scenarios = data.get('scenarios', [])
+        cols = st.columns(3)
+        for i, col in enumerate(cols):
+            if i < len(scenarios):
+                scen = scenarios[i]
+                icone_safe = html.escape(str(scen.get('icone', '')))
+                titre_scen_safe = html.escape(str(scen.get('titre', '')))
+                cout_safe = html.escape(str(scen.get('cout', '')))
+                resultat_safe = html.escape(str(scen.get('resultat', '')))
+                col.markdown(f"""
+                <div class="scenario-card">
+                    <div style="font-size:1.7em; margin-bottom:5px;">{icone_safe}</div>
+                    <div class="scenario-title">{titre_scen_safe}</div>
+                    <div class="scenario-cost">Coût : {cout_safe}</div>
+                    <div class="scenario-result">{resultat_safe}</div>
+                </div>
+                """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # === CONSEIL FINAL ===
+        reco_safe = html.escape(str(data.get('recommandation_finale', '')))
+        st.markdown(f"""
+        <div class="advice-card">
+            <div class="advice-title">💡 Le Conseil du Gwani</div>
+            <p>{reco_safe}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # === FEEDBACK UTILISATEUR ===
+        st.markdown('<div class="tech-card">', unsafe_allow_html=True)
+        st.markdown('<div class="tech-header">🗳️ Ce verdict vous semble-t-il juste ?</div>', unsafe_allow_html=True)
+        if result.get("feedback"):
+            fb_msg = "👍 Merci pour votre retour !" if result["feedback"] == "up" else "👎 Merci, c'est noté."
+            st.markdown(f'<div style="color:#6b7280; font-weight:600;">{fb_msg}</div>', unsafe_allow_html=True)
+        else:
+            fb_col1, fb_col2 = st.columns(2)
+            with fb_col1:
+                if st.button("👍 Oui, pertinent", use_container_width=True, key="fb_up"):
+                    result["feedback"] = "up"
+                    st.rerun()
+            with fb_col2:
+                if st.button("👎 Pas vraiment", use_container_width=True, key="fb_down"):
+                    result["feedback"] = "down"
+                    st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # === ACTIONS : NOUVELLE ANALYSE / PARTAGER ===
+        st.markdown("<br>", unsafe_allow_html=True)
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if st.button("🔄 Nouvelle analyse", use_container_width=True, type="secondary", key="reset_success"):
+                reset_analysis()
+        with col_b:
+            # Mini-résumé à copier / partager
+            summary = (
+                f"Gaskiyar Kaya - {data.get('titre', '')}\n"
+                f"Verdict : {v_raw}\n"
+                f"Score global : {global_score}%\n"
+                f"Prix demandé : {fmt_fcfa(price_for_render)}\n"
+            )
+            if prix_min and prix_max:
+                summary += f"Estimation IA : {fmt_fcfa(prix_min)} – {fmt_fcfa(prix_max)}\n"
+            summary += f"Conseil : {data.get('recommandation_finale', '')}"
+            with st.popover("📤 Partager", use_container_width=True):
+                st.code(summary, language=None)
+                components.html(f"""
+                    <button id="share-btn" style="width:100%; padding:10px; border-radius:8px;
+                        border:1.5px solid #ea580c; background:white; color:#ea580c; font-weight:700;
+                        font-family:inherit; cursor:pointer;">
+                        📱 Partager / Copier en un clic
+                    </button>
+                    <script>
+                        const btn = document.getElementById('share-btn');
+                        const text = {json.dumps(summary)};
+                        btn.addEventListener('click', async () => {{
+                            try {{
+                                if (navigator.share) {{
+                                    await navigator.share({{ title: 'Gaskiyar Kaya', text: text }});
+                                    return;
+                                }}
+                            }} catch (e) {{ /* annulé ou non supporté, on tente la copie */ }}
+                            try {{
+                                await navigator.clipboard.writeText(text);
+                                btn.innerText = '✅ Copié !';
+                                setTimeout(() => btn.innerText = '📱 Partager / Copier en un clic', 1500);
+                            }} catch (e) {{ /* copie impossible : le texte reste sélectionnable ci-dessus */ }}
+                        }});
+                    </script>
+                """, height=52)
+                st.caption("Ou sélectionnez le texte ci-dessus pour copier manuellement.")
+        return
+
+    # Statuts sans rapport détaillé (erreur / non reconnu) : bouton pour recommencer
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("🔄 Réessayer", use_container_width=True, type="secondary", key="reset_other"):
+        reset_analysis()
+
+
+# --- BOUTON D'ANALYSE (toujours visible, disabled si pas prêt ou en cours) ---
 launch_clicked = st.button(
     "🔍 Lancer l'analyse",
-    disabled=not is_ready,
+    disabled=not is_ready or st.session_state.processing,
     use_container_width=True
 )
 
-if launch_clicked and is_ready:
+# Un clic passe d'abord en état "processing" + rerun immédiat : le bouton se
+# grise et le spinner apparaît tout de suite, avant même l'appel (bloquant) à
+# l'IA. Ça évite aussi les doubles clics qui déclencheraient deux appels payants.
+if launch_clicked and is_ready and not st.session_state.processing:
+    st.session_state.processing = True
+    st.rerun()
+
+if st.session_state.processing:
     if not api_key:
         st.error("⚠️ Clé API manquante. Ouvrez la section Configuration ci-dessus.")
+        st.session_state.processing = False
     else:
-        image = Image.open(img_file_buffer)
+        images = [prepare_image_for_ai(Image.open(f)) for f in img_files]
+        render_preview(images)
 
-        # Aperçu joli
-        st.markdown('<div class="preview-wrap">', unsafe_allow_html=True)
-        st.image(image, use_container_width=False, width=220)
-        st.markdown('</div>', unsafe_allow_html=True)
+        # Squelette animé pendant le calcul (retiré dès que le résultat est prêt)
+        skeleton_placeholder = st.empty()
+        skeleton_placeholder.markdown("""
+        <div class="tech-card skeleton-card">
+            <div class="skeleton-shimmer skeleton-line" style="width:55%"></div>
+            <div class="skeleton-shimmer skeleton-line" style="width:90%"></div>
+            <div class="skeleton-shimmer skeleton-line" style="width:80%"></div>
+            <div class="skeleton-shimmer skeleton-line" style="width:40%"></div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        # Progression multi-étapes simulée
-        progress_placeholder = st.empty()
-        steps = [
-            "🔎 Reconnaissance de l'objet...",
-            "🧬 Analyse des matériaux et de la structure...",
-            "⚖️ Comparaison aux prix du marché nigérien...",
-            "✍️ Génération du rapport d'expertise..."
-        ]
-        for i, step in enumerate(steps[:-1]):
-            progress_placeholder.markdown(
-                f'<div style="text-align:center; color:#ea580c; font-weight:600; padding:8px;">{step}</div>',
-                unsafe_allow_html=True
-            )
-            time.sleep(0.35)
-
-        progress_placeholder.markdown(
-            f'<div style="text-align:center; color:#ea580c; font-weight:600; padding:8px;">{steps[-1]}</div>',
-            unsafe_allow_html=True
-        )
-        with st.spinner(""):
-            json_str, info_msg = analyze_image_pro(image, price_input, api_key)
-        progress_placeholder.empty()
+        # Étapes affichées pendant le vrai temps d'attente de l'IA (pas de délai artificiel)
+        with st.status("🔎 Analyse de votre meuble...", expanded=True) as status_box:
+            st.write("🔎 Reconnaissance de l'objet...")
+            st.write("🧬 Analyse des matériaux et de la structure...")
+            st.write("⚖️ Comparaison aux prix du marché nigérien...")
+            json_str, info_msg = analyze_image_pro(images, price_input, api_key)
+            if json_str:
+                status_box.update(label="✅ Rapport d'expertise généré", state="complete", expanded=False)
+            else:
+                status_box.update(label="❌ Échec de l'analyse", state="error", expanded=False)
+        skeleton_placeholder.empty()
 
         if not json_str:
-            st.markdown(
-                f'<div class="tech-card" style="background:#fef2f2; border-color:#fecaca;">'
-                f'<div style="color:#b91c1c !important; font-weight:700;">❌ Erreur technique</div>'
-                f'<div style="color:#991b1b !important; font-size:0.85em; margin-top:4px;">{html.escape(str(info_msg or ""))}</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
+            st.session_state.last_analysis = {
+                "status": "error", "error_msg": info_msg, "images": images, "price": price_input
+            }
         else:
             try:
                 data = json.loads(json_str)
                 if not data.get("is_furniture"):
-                    st.markdown(
-                        '<div class="tech-card" style="background:#fef2f2; border-color:#fecaca;">'
-                        '<div style="color:#b91c1c !important; font-weight:700; font-size:1.05em;">🛑 Objet non reconnu</div>'
-                        '<div style="color:#7f1d1d !important; font-size:0.9em; margin-top:6px;">'
-                        'Objets acceptés : Tables, Lits, Canapés, Armoires, Fauteuils, Commodes, Bureaux, Chaises...'
-                        '</div></div>',
-                        unsafe_allow_html=True
-                    )
+                    st.session_state.last_analysis = {
+                        "status": "not_furniture", "images": images, "price": price_input
+                    }
                 else:
-                    # === VERDICT HERO (bannière top) ===
-                    v_raw = data.get('verdict_prix', 'N/A')
-                    titre_safe = html.escape(str(data.get('titre', '')))
-                    style_safe = html.escape(str(data.get('style', '')))
-
-                    if "Affaire" in v_raw:
-                        vh_class, vh_icon, vh_sub = "vh-green", "🎯", "Bonne affaire à saisir"
-                    elif "Correct" in v_raw:
-                        vh_class, vh_icon, vh_sub = "vh-orange", "⚖️", "Prix cohérent, possibilité de négocier"
-                    else:
-                        vh_class, vh_icon, vh_sub = "vh-red", "⚠️", "Prix élevé, négociez ferme"
-
-                    st.markdown(f"""
-                    <div class="verdict-hero {vh_class}">
-                        <div class="big-icon">{vh_icon}</div>
-                        <div style="flex:1;">
-                            <p class="v-title">{html.escape(str(v_raw))}</p>
-                            <p class="v-sub">{vh_sub}</p>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    # === IDENTITÉ MEUBLE ===
-                    st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                    st.markdown(
-                        f"<h3 style='margin:0 0 4px 0; font-size:1.35em; font-weight:800'>{titre_safe}</h3>"
-                        f"<span style='color:#6b7280; font-size:0.9em; font-weight:500'>{style_safe}</span>",
-                        unsafe_allow_html=True
-                    )
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-                    # === COMPARATEUR PRIX ===
-                    prix_min = data.get('prix_estime_min')
-                    prix_max = data.get('prix_estime_max')
-                    if prix_min and prix_max:
-                        try:
-                            prix_min_i = int(prix_min)
-                            prix_max_i = int(prix_max)
-                            prix_mid = (prix_min_i + prix_max_i) // 2
-                            delta = price_input - prix_mid
-                            pct = (delta / prix_mid) * 100 if prix_mid else 0
-
-                            if price_input <= prix_max_i and price_input >= prix_min_i:
-                                delta_class = "delta-good"
-                                delta_text = f"✅ Dans la fourchette du marché"
-                            elif price_input < prix_min_i:
-                                delta_class = "delta-good"
-                                delta_text = f"🎯 Sous le marché ({abs(pct):.0f}% moins cher)"
-                            else:
-                                delta_class = "delta-bad" if pct > 25 else "delta-neutral"
-                                delta_text = f"⚠️ Au-dessus du marché (+{pct:.0f}%)"
-
-                            st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                            st.markdown('<div class="tech-header">💸 Comparateur Prix</div>', unsafe_allow_html=True)
-                            st.markdown(f"""
-                            <div class="price-compare">
-                                <div class="price-box">
-                                    <div class="pb-label">Prix demandé</div>
-                                    <div class="pb-value">{fmt_fcfa(price_input)}</div>
-                                </div>
-                                <div class="price-box highlight">
-                                    <div class="pb-label">Estimation IA</div>
-                                    <div class="pb-value">{fmt_fcfa(prix_min_i)} – {fmt_fcfa(prix_max_i).replace(' FCFA','')}</div>
-                                </div>
-                            </div>
-                            <div class="price-delta {delta_class}">{delta_text}</div>
-                            """, unsafe_allow_html=True)
-                            st.markdown('</div>', unsafe_allow_html=True)
-                        except (ValueError, TypeError):
-                            pass
-
-                    # === PERFORMANCE (score circle + jauges dynamiques) ===
-                    scores = data.get('scores', {})
-                    global_score = int(scores.get('global', 50))
-                    col_main, col_bg = score_color(global_score)
-
-                    st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                    st.markdown('<div class="tech-header">📊 Performance</div>', unsafe_allow_html=True)
-                    st.markdown(f"""
-                    <div class="score-circle-container">
-                        <div class="score-circle" style="background: conic-gradient({col_main} {global_score}%, #f3f4f6 0);">
-                            <div style="position:absolute; text-align:center;">
-                                <div class="score-value" style="color:{col_main};">{global_score}%</div>
-                                <span class="score-label">ÉTAT GLOBAL</span>
-                            </div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    gauges = [
-                        ("🧱 Solidité Structurelle", int(scores.get('solidite', 0))),
-                        ("💎 Qualité Matériaux",     int(scores.get('materiaux', 0))),
-                        ("🛠️ Facilité Restauration", int(scores.get('restauration', 0))),
-                    ]
-                    for label, val in gauges:
-                        g_col, _ = score_color(val)
-                        st.markdown(f"""
-                        <div class="gauge-container">
-                            <div class="gauge-label">
-                                <span>{label}</span>
-                                <span style="color:{g_col};">{val}%</span>
-                            </div>
-                            <div class="gauge-bg">
-                                <div class="gauge-fill" style="width: {val}%; background: linear-gradient(90deg, {g_col}99, {g_col});"></div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-                    # === COMPOSITION MATÉRIAUX ===
-                    st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                    st.markdown('<div class="tech-header">🧬 Composition</div>', unsafe_allow_html=True)
-                    html_table = '<table class="styled-table"><tbody>'
-                    for row in data.get('composition_materiau', []):
-                        couche_safe = html.escape(str(row.get('couche', '')))
-                        compo_safe = html.escape(str(row.get('compo', '')))
-                        etat_safe = html.escape(str(row.get('etat', '')))
-                        html_table += (
-                            f"<tr><td width='30%'><b>{couche_safe}</b></td>"
-                            f"<td>{compo_safe}<br><small style='color:#ea580c'>{etat_safe}</small></td></tr>"
-                        )
-                    html_table += "</tbody></table>"
-                    st.markdown(html_table, unsafe_allow_html=True)
-
-                    avis_menuisier_safe = html.escape(str(data.get('avis_menuisier', '')))
-                    avis_tapissier_safe = html.escape(str(data.get('avis_tapissier', '')))
-                    st.markdown(f"""
-                    <div style="margin-top:14px; padding:14px; background:#f9fafb; border-radius:10px;
-                                 font-size:0.9em; border-left: 3px solid #ea580c;">
-                        🪑 <b>Menuisier :</b> {avis_menuisier_safe}<br><br>
-                        🧵 <b>Tapissier :</b> {avis_tapissier_safe}
-                    </div>
-                    """, unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-                    # === SCÉNARIOS ===
-                    st.markdown('<div class="tech-card">', unsafe_allow_html=True)
-                    st.markdown('<div class="tech-header">⚖️ Scénarios d\'Action</div>', unsafe_allow_html=True)
-                    scenarios = data.get('scenarios', [])
-                    cols = st.columns(3)
-                    for i, col in enumerate(cols):
-                        if i < len(scenarios):
-                            scen = scenarios[i]
-                            icone_safe = html.escape(str(scen.get('icone', '')))
-                            titre_scen_safe = html.escape(str(scen.get('titre', '')))
-                            cout_safe = html.escape(str(scen.get('cout', '')))
-                            resultat_safe = html.escape(str(scen.get('resultat', '')))
-                            col.markdown(f"""
-                            <div class="scenario-card">
-                                <div style="font-size:1.7em; margin-bottom:5px;">{icone_safe}</div>
-                                <div class="scenario-title">{titre_scen_safe}</div>
-                                <div class="scenario-cost">Coût : {cout_safe}</div>
-                                <div class="scenario-result">{resultat_safe}</div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-                    # === CONSEIL FINAL ===
-                    reco_safe = html.escape(str(data.get('recommandation_finale', '')))
-                    st.markdown(f"""
-                    <div class="advice-card">
-                        <div class="advice-title">💡 Le Conseil du Gwani</div>
-                        <p>{reco_safe}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    # === ACTIONS : NOUVELLE ANALYSE / COPIER ===
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    col_a, col_b = st.columns(2)
-                    with col_a:
-                        if st.button("🔄 Nouvelle analyse", use_container_width=True, type="secondary"):
-                            st.rerun()
-                    with col_b:
-                        # Mini-résumé à copier
-                        summary = (
-                            f"Gaskiyar Kaya - {data.get('titre', '')}\n"
-                            f"Verdict : {v_raw}\n"
-                            f"Score global : {global_score}%\n"
-                            f"Prix demandé : {fmt_fcfa(price_input)}\n"
-                        )
-                        if prix_min and prix_max:
-                            summary += f"Estimation IA : {fmt_fcfa(prix_min)} – {fmt_fcfa(prix_max)}\n"
-                        summary += f"Conseil : {data.get('recommandation_finale', '')}"
-                        with st.popover("📤 Partager", use_container_width=True):
-                            st.code(summary, language=None)
-                            st.caption("Sélectionnez le texte ci-dessus pour copier.")
-
-                    # === SAUVEGARDE VERS SHEETS ===
+                    global_score = int(data.get('scores', {}).get('global', 50))
                     save_data_to_sheets(
                         data.get('titre'),
                         price_input,
                         global_score,
                         data.get('verdict_prix')
                     )
-
+                    st.session_state.last_analysis = {
+                        "status": "success", "data": data, "images": images, "price": price_input
+                    }
+                    st.session_state.history.insert(0, {
+                        "titre": data.get('titre', 'Meuble'),
+                        "verdict": data.get('verdict_prix', 'N/A'),
+                        "score": global_score,
+                        "price": price_input,
+                        "timestamp": datetime.now().strftime("%H:%M"),
+                        "snapshot": st.session_state.last_analysis,
+                    })
+                    st.session_state.history = st.session_state.history[:5]
             except json.JSONDecodeError:
-                st.markdown(
-                    '<div class="tech-card" style="background:#fef2f2; border-color:#fecaca;">'
-                    '<div style="color:#b91c1c !important; font-weight:700;">❌ Erreur de lecture</div>'
-                    '<div style="color:#991b1b !important; font-size:0.85em; margin-top:4px;">'
-                    'L\'IA a renvoyé un format inattendu. Réessayez avec une photo plus nette.'
-                    '</div></div>',
-                    unsafe_allow_html=True
-                )
+                st.session_state.last_analysis = {
+                    "status": "json_error", "images": images, "price": price_input
+                }
+
+        st.session_state.processing = False
+        st.session_state.scroll_to_result = True
+
+    st.rerun()
+
+if st.session_state.last_analysis:
+    st.markdown('<div id="result-top"></div>', unsafe_allow_html=True)
+    render_result(st.session_state.last_analysis)
+    if st.session_state.pop("scroll_to_result", False):
+        components.html(
+            """
+            <script>
+                setTimeout(function() {
+                    var el = window.parent.document.getElementById('result-top');
+                    if (el) { el.scrollIntoView({behavior: 'smooth', block: 'start'}); }
+                }, 150);
+            </script>
+            """,
+            height=0,
+        )
 
 # --- FOOTER ---
 st.markdown("""
