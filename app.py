@@ -607,6 +607,26 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# META TAGS MOBILE (couleur de barre d'adresse + ajout à l'écran d'accueil "app-like")
+components.html("""
+<script>
+(function() {
+    const head = window.parent.document.head;
+    function addMeta(name, content) {
+        if (head.querySelector(`meta[name="${name}"]`)) return;
+        const m = document.createElement('meta');
+        m.name = name;
+        m.content = content;
+        head.appendChild(m);
+    }
+    addMeta('theme-color', '#ea580c');
+    addMeta('apple-mobile-web-app-capable', 'yes');
+    addMeta('apple-mobile-web-app-status-bar-style', 'black-translucent');
+    addMeta('apple-mobile-web-app-title', 'Gaskiyar Kaya');
+})();
+</script>
+""", height=0)
+
 # --- ÉTAT DE SESSION ---
 if "widget_version" not in st.session_state:
     st.session_state.widget_version = 0
@@ -695,8 +715,36 @@ def render_preview(images):
             with c:
                 st.image(img, use_container_width=True)
 
+def prepare_image_for_ai(image, max_dim=1280):
+    """Redimensionne l'image (photos de téléphone souvent énormes) pour un envoi
+    plus rapide et moins coûteux à l'IA, sans perte visible à cette résolution."""
+    img = image.copy()
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+    return img
+
+def friendly_error_message(raw_msg):
+    """Traduit une erreur technique (Gemini/réseau) en message compréhensible."""
+    msg = str(raw_msg or "")
+    low = msg.lower()
+    if "api key not valid" in low or "api_key_invalid" in low:
+        return "Clé API invalide. Vérifiez-la dans la section Configuration ci-dessus."
+    if "429" in msg or "quota" in low or "surcharge" in low:
+        return "Le service IA est momentanément surchargé. Réessayez dans quelques secondes."
+    if "timeout" in low or "deadline" in low:
+        return "La connexion a pris trop de temps. Vérifiez votre réseau et réessayez."
+    if "network" in low or "connection" in low or "resolve" in low:
+        return "Problème de connexion réseau. Vérifiez votre connexion internet."
+    return "Une erreur inattendue s'est produite pendant l'analyse. Réessayez avec une photo plus nette."
+
 # --- SCANNER MODÈLES GEMINI ---
-def find_best_model_dynamic():
+def find_best_model_dynamic(api_key):
+    # Le modèle disponible ne change pas en cours de session : on évite de
+    # rappeler list_models() (aller-retour réseau) à chaque nouvelle analyse.
+    cached = st.session_state.get("gemini_model_cache")
+    if cached and cached.get("api_key") == api_key:
+        return cached["model"], None
     try:
         available_models = []
         for m in genai.list_models():
@@ -704,20 +752,26 @@ def find_best_model_dynamic():
                 available_models.append(m.name)
         if not available_models:
             return None, "Aucun modèle trouvé."
+        chosen = None
         for m in available_models:
             if 'flash' in m.lower():
-                return m, None
-        for m in available_models:
-            if 'pro' in m.lower() and 'vision' not in m.lower():
-                return m, None
-        return available_models[0], None
+                chosen = m
+                break
+        if not chosen:
+            for m in available_models:
+                if 'pro' in m.lower() and 'vision' not in m.lower():
+                    chosen = m
+                    break
+        chosen = chosen or available_models[0]
+        st.session_state.gemini_model_cache = {"api_key": api_key, "model": chosen}
+        return chosen, None
     except Exception as e:
         return "models/gemini-1.5-flash", str(e)
 
 # --- ANALYSE IA ---
 def analyze_image_pro(images, price, api_key):
     genai.configure(api_key=api_key)
-    model_name, scan_error = find_best_model_dynamic()
+    model_name, scan_error = find_best_model_dynamic(api_key)
     if not model_name:
         return None, scan_error
 
@@ -820,6 +874,18 @@ if st.session_state.history:
                     st.session_state.scroll_to_result = True
                     st.rerun()
         st.caption("Historique valable uniquement pour cette session de navigateur (non partagé, non sauvegardé).")
+        history_text = "\n\n".join(
+            f"{e['timestamp']} - {e['titre']} - {fmt_fcfa(e['price'])} - "
+            f"Score {e['score']}% - Verdict : {e['verdict']}"
+            for e in st.session_state.history
+        )
+        st.download_button(
+            "⬇️ Télécharger l'historique",
+            data=history_text,
+            file_name="gaskiyar_kaya_historique.txt",
+            mime="text/plain",
+            use_container_width=True,
+        )
 
 # --- CAPTURE IMAGE ---
 wv = st.session_state.widget_version
@@ -913,13 +979,17 @@ def render_result(result):
     render_preview(images)
 
     if status == "error":
+        raw_msg = str(result.get("error_msg") or "")
         st.markdown(
             f'<div class="tech-card" style="background:#fef2f2; border-color:#fecaca;">'
-            f'<div style="color:#b91c1c !important; font-weight:700;">❌ Erreur technique</div>'
-            f'<div style="color:#991b1b !important; font-size:0.85em; margin-top:4px;">{html.escape(str(result.get("error_msg") or ""))}</div>'
+            f'<div style="color:#b91c1c !important; font-weight:700;">❌ Analyse impossible</div>'
+            f'<div style="color:#991b1b !important; font-size:0.9em; margin-top:4px;">{html.escape(friendly_error_message(raw_msg))}</div>'
             f'</div>',
             unsafe_allow_html=True
         )
+        if raw_msg:
+            with st.expander("Détails techniques"):
+                st.code(raw_msg, language=None)
     elif status == "not_furniture":
         st.markdown(
             '<div class="tech-card" style="background:#fef2f2; border-color:#fecaca;">'
@@ -1196,7 +1266,7 @@ if st.session_state.processing:
         st.error("⚠️ Clé API manquante. Ouvrez la section Configuration ci-dessus.")
         st.session_state.processing = False
     else:
-        images = [Image.open(f) for f in img_files]
+        images = [prepare_image_for_ai(Image.open(f)) for f in img_files]
         render_preview(images)
 
         # Squelette animé pendant le calcul (retiré dès que le résultat est prêt)
