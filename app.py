@@ -528,6 +528,82 @@ st.markdown("""
         .score-value { font-size: 1.6em; }
         .price-compare { grid-template-columns: 1fr; }
     }
+
+    /* DESKTOP : un peu plus de largeur pour respirer sur grand écran */
+    @media only screen and (min-width: 1024px) {
+        .main .block-container {
+            max-width: 900px !important;
+        }
+    }
+
+    /* SKELETON LOADER (pendant l'analyse) */
+    .skeleton-shimmer {
+        background: linear-gradient(90deg, #eef0f2 25%, #f7f8fa 50%, #eef0f2 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.4s infinite;
+        border-radius: 8px;
+    }
+    @keyframes shimmer {
+        0%   { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    .skeleton-line { height: 14px; margin-bottom: 12px; }
+    .skeleton-line:last-child { margin-bottom: 0; }
+
+    /* MODE SOMBRE (auto, basé sur les préférences système) */
+    @media (prefers-color-scheme: dark) {
+        :root { color-scheme: dark; }
+
+        .stApp {
+            background-color: #0f172a;
+            background-image: radial-gradient(#1e293b 1px, transparent 1px);
+        }
+        h1, h2, h3, h4, h5, h6, p, span, div, label, li, td, th {
+            color: #e5e7eb !important;
+        }
+        .stCaption, div[data-testid="stCaptionContainer"] p {
+            color: #94a3b8 !important;
+        }
+        .tech-card, .scenario-card, .price-box {
+            background: #1e293b;
+            border-color: #334155;
+        }
+        .tech-card { box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+        .price-box.highlight { background: #3a2a1a; border-color: #ea580c; }
+        .styled-table td { border-bottom-color: #334155; }
+        .skeleton-shimmer {
+            background: linear-gradient(90deg, #1e293b 25%, #273449 50%, #1e293b 75%);
+            background-size: 200% 100%;
+        }
+        .stTabs [data-baseweb="tab-list"] {
+            background-color: #1e293b;
+            border-color: #334155;
+        }
+        .stTabs [data-baseweb="tab"]:hover { background-color: #273449 !important; }
+        .stTabs [aria-selected="true"] { background-color: #3a2412 !important; }
+        div[data-testid="stFileUploader"] {
+            background-color: #1e293b;
+            border-color: #334155;
+        }
+        div[data-testid="stFileUploader"] button {
+            background-color: #0f172a !important;
+            color: #e5e7eb !important;
+            border-color: #334155 !important;
+        }
+        .info-chip {
+            background: #1e2f4d;
+            border-color: #2c4a75;
+            color: #cfe2ff !important;
+        }
+        .info-chip b { color: #cfe2ff !important; }
+        button[kind="secondary"] {
+            background: #1e293b !important;
+        }
+        .streamlit-expanderHeader, div[data-testid="stExpander"] {
+            background-color: #1e293b !important;
+            border-color: #334155 !important;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -540,6 +616,8 @@ if "processing" not in st.session_state:
     st.session_state.processing = False
 if "scroll_to_result" not in st.session_state:
     st.session_state.scroll_to_result = False
+if "history" not in st.session_state:
+    st.session_state.history = []
 
 def reset_analysis():
     """Efface le résultat et force le reset des widgets (photo, prix)."""
@@ -603,6 +681,20 @@ def score_color(score):
         return "#f59e0b", "#fef3c7"  # orange
     return "#ef4444", "#fee2e2"      # rouge
 
+def render_preview(images):
+    """Affiche 1 à 3 photos : une seule photo centrée, ou une rangée de miniatures."""
+    if not images:
+        return
+    if len(images) == 1:
+        st.markdown('<div class="preview-wrap">', unsafe_allow_html=True)
+        st.image(images[0], width=220)
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        cols = st.columns(len(images))
+        for c, img in zip(cols, images):
+            with c:
+                st.image(img, use_container_width=True)
+
 # --- SCANNER MODÈLES GEMINI ---
 def find_best_model_dynamic():
     try:
@@ -623,7 +715,7 @@ def find_best_model_dynamic():
         return "models/gemini-1.5-flash", str(e)
 
 # --- ANALYSE IA ---
-def analyze_image_pro(image, price, api_key):
+def analyze_image_pro(images, price, api_key):
     genai.configure(api_key=api_key)
     model_name, scan_error = find_best_model_dynamic()
     if not model_name:
@@ -631,6 +723,8 @@ def analyze_image_pro(image, price, api_key):
 
     prompt = f"""
     Tu es un expert menuisier à Niamey (Niger). Analyse ce meuble (Prix demandé : {price} FCFA).
+    Tu reçois une ou plusieurs photos du même meuble (jusqu'à 3 angles différents) : croise les
+    informations entre les photos pour affiner ton diagnostic (structure, matériaux, défauts).
 
     Liste des objets acceptés : Canapé, fauteuil, table basse, meuble TV, lit, armoire, commode, chevet, table à manger, chaise, buffet, bureau, bibliothèque, console, meuble à chaussures, dressing, lit superposé, canapé-lit, banquette, table de cuisine, tabouret, meuble sous-vasque.
 
@@ -670,13 +764,13 @@ def analyze_image_pro(image, price, api_key):
 
     try:
         model = genai.GenerativeModel(model_name)
-        response = model.generate_content([prompt, image])
+        response = model.generate_content([prompt, *images])
         return clean_json_response(response.text), model_name
     except Exception as e:
         if "429" in str(e):
             time.sleep(2)
             try:
-                response = model.generate_content([prompt, image])
+                response = model.generate_content([prompt, *images])
                 return clean_json_response(response.text), model_name
             except Exception:
                 return None, "Surcharge serveur"
@@ -695,29 +789,60 @@ st.markdown("""
 st.markdown("""
 <div class="info-chip">
     <span style="font-size:1.2em;">ℹ️</span>
-    <div><b>Une seule photo bien cadrée suffit.</b> JPG · PNG · WEBP · Max 200 Mo</div>
+    <div><b>Une photo suffit</b>, ajoutez jusqu'à 3 angles pour une analyse plus précise. JPG · PNG · WEBP</div>
 </div>
 """, unsafe_allow_html=True)
+
+with st.expander("📐 Conseils pour une photo réussie"):
+    st.markdown("""
+- ✅ **Lumière naturelle** : évitez le flash direct qui écrase les détails.
+- ✅ Cadrez **tout le meuble**, y compris les pieds et les angles.
+- ✅ Ajoutez une **photo de détail** (rayure, tissu, assemblage) si vous le pouvez.
+- ❌ Évitez les photos floues ou prises de trop loin.
+- ❌ Évitez les arrière-plans encombrés qui perturbent l'analyse.
+""")
+
+# --- HISTORIQUE DE SESSION ---
+if st.session_state.history:
+    with st.expander(f"🕘 Historique de cette session ({len(st.session_state.history)})"):
+        for i, entry in enumerate(st.session_state.history):
+            v = entry["verdict"]
+            badge = "🟢" if "Affaire" in v else ("🟠" if "Correct" in v else "🔴")
+            col_h1, col_h2 = st.columns([4, 1])
+            with col_h1:
+                st.markdown(
+                    f"{badge} **{html.escape(entry['titre'])}** — "
+                    f"{fmt_fcfa(entry['price'])} · Score {entry['score']}% · {entry['timestamp']}"
+                )
+            with col_h2:
+                if st.button("Revoir", key=f"hist_{i}", use_container_width=True):
+                    st.session_state.last_analysis = entry["snapshot"]
+                    st.session_state.scroll_to_result = True
+                    st.rerun()
+        st.caption("Historique valable uniquement pour cette session de navigateur (non partagé, non sauvegardé).")
 
 # --- CAPTURE IMAGE ---
 wv = st.session_state.widget_version
 tab_cam, tab_upload = st.tabs(["📸 Prendre Photo", "📂 Galerie"])
-img_file_buffer = None
+img_files = []
 
 with tab_cam:
     camera_img = st.camera_input("Cadrez le meuble", label_visibility="collapsed", key=f"camera_{wv}")
     if camera_img:
-        img_file_buffer = camera_img
+        img_files = [camera_img]
 
 with tab_upload:
-    upload_img = st.file_uploader(
-        "Choisir une image",
+    upload_imgs = st.file_uploader(
+        "Choisir une ou plusieurs images (max 3 angles)",
         type=["jpg", "png", "jpeg", "webp"],
+        accept_multiple_files=True,
         label_visibility="collapsed",
         key=f"upload_{wv}"
     )
-    if upload_img:
-        img_file_buffer = upload_img
+    if upload_imgs:
+        img_files = upload_imgs[:3]
+        if len(upload_imgs) > 3:
+            st.caption("⚠️ Seules les 3 premières photos seront analysées.")
 
 # --- PRIX ---
 st.markdown("<br>", unsafe_allow_html=True)
@@ -741,9 +866,13 @@ if price_input > 0:
         f'Soit <b style="color:#ea580c;">{fmt_fcfa(price_input)}</b></div>',
         unsafe_allow_html=True
     )
+    if price_input < 500:
+        st.caption("⚠️ Ce prix semble très bas, vérifiez qu'il est bien exprimé en FCFA.")
+    elif price_input > 3_000_000:
+        st.caption("⚠️ Ce prix semble très élevé pour un meuble d'occasion, vérifiez votre saisie.")
 
 # --- ÉTAT PRÊT ---
-has_image = img_file_buffer is not None
+has_image = len(img_files) > 0
 has_price = price_input > 0
 is_ready = has_image and has_price
 
@@ -778,13 +907,10 @@ elif has_price and not has_image:
 # --- RENDU DU RÉSULTAT (persistant via session_state) ---
 def render_result(result):
     status = result["status"]
-    image = result.get("image")
+    images = result.get("images") or []
     price_for_render = result.get("price", 0)
 
-    if image is not None:
-        st.markdown('<div class="preview-wrap">', unsafe_allow_html=True)
-        st.image(image, use_container_width=False, width=220)
-        st.markdown('</div>', unsafe_allow_html=True)
+    render_preview(images)
 
     if status == "error":
         st.markdown(
@@ -981,14 +1107,32 @@ def render_result(result):
         </div>
         """, unsafe_allow_html=True)
 
-        # === ACTIONS : NOUVELLE ANALYSE / COPIER ===
+        # === FEEDBACK UTILISATEUR ===
+        st.markdown('<div class="tech-card">', unsafe_allow_html=True)
+        st.markdown('<div class="tech-header">🗳️ Ce verdict vous semble-t-il juste ?</div>', unsafe_allow_html=True)
+        if result.get("feedback"):
+            fb_msg = "👍 Merci pour votre retour !" if result["feedback"] == "up" else "👎 Merci, c'est noté."
+            st.markdown(f'<div style="color:#6b7280; font-weight:600;">{fb_msg}</div>', unsafe_allow_html=True)
+        else:
+            fb_col1, fb_col2 = st.columns(2)
+            with fb_col1:
+                if st.button("👍 Oui, pertinent", use_container_width=True, key="fb_up"):
+                    result["feedback"] = "up"
+                    st.rerun()
+            with fb_col2:
+                if st.button("👎 Pas vraiment", use_container_width=True, key="fb_down"):
+                    result["feedback"] = "down"
+                    st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # === ACTIONS : NOUVELLE ANALYSE / PARTAGER ===
         st.markdown("<br>", unsafe_allow_html=True)
         col_a, col_b = st.columns(2)
         with col_a:
             if st.button("🔄 Nouvelle analyse", use_container_width=True, type="secondary", key="reset_success"):
                 reset_analysis()
         with col_b:
-            # Mini-résumé à copier
+            # Mini-résumé à copier / partager
             summary = (
                 f"Gaskiyar Kaya - {data.get('titre', '')}\n"
                 f"Verdict : {v_raw}\n"
@@ -1000,7 +1144,31 @@ def render_result(result):
             summary += f"Conseil : {data.get('recommandation_finale', '')}"
             with st.popover("📤 Partager", use_container_width=True):
                 st.code(summary, language=None)
-                st.caption("Sélectionnez le texte ci-dessus pour copier.")
+                components.html(f"""
+                    <button id="share-btn" style="width:100%; padding:10px; border-radius:8px;
+                        border:1.5px solid #ea580c; background:white; color:#ea580c; font-weight:700;
+                        font-family:inherit; cursor:pointer;">
+                        📱 Partager / Copier en un clic
+                    </button>
+                    <script>
+                        const btn = document.getElementById('share-btn');
+                        const text = {json.dumps(summary)};
+                        btn.addEventListener('click', async () => {{
+                            try {{
+                                if (navigator.share) {{
+                                    await navigator.share({{ title: 'Gaskiyar Kaya', text: text }});
+                                    return;
+                                }}
+                            }} catch (e) {{ /* annulé ou non supporté, on tente la copie */ }}
+                            try {{
+                                await navigator.clipboard.writeText(text);
+                                btn.innerText = '✅ Copié !';
+                                setTimeout(() => btn.innerText = '📱 Partager / Copier en un clic', 1500);
+                            }} catch (e) {{ /* copie impossible : le texte reste sélectionnable ci-dessus */ }}
+                        }});
+                    </script>
+                """, height=52)
+                st.caption("Ou sélectionnez le texte ci-dessus pour copier manuellement.")
         return
 
     # Statuts sans rapport détaillé (erreur / non reconnu) : bouton pour recommencer
@@ -1028,29 +1196,42 @@ if st.session_state.processing:
         st.error("⚠️ Clé API manquante. Ouvrez la section Configuration ci-dessus.")
         st.session_state.processing = False
     else:
-        image = Image.open(img_file_buffer)
+        images = [Image.open(f) for f in img_files]
+        render_preview(images)
+
+        # Squelette animé pendant le calcul (retiré dès que le résultat est prêt)
+        skeleton_placeholder = st.empty()
+        skeleton_placeholder.markdown("""
+        <div class="tech-card skeleton-card">
+            <div class="skeleton-shimmer skeleton-line" style="width:55%"></div>
+            <div class="skeleton-shimmer skeleton-line" style="width:90%"></div>
+            <div class="skeleton-shimmer skeleton-line" style="width:80%"></div>
+            <div class="skeleton-shimmer skeleton-line" style="width:40%"></div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # Étapes affichées pendant le vrai temps d'attente de l'IA (pas de délai artificiel)
         with st.status("🔎 Analyse de votre meuble...", expanded=True) as status_box:
             st.write("🔎 Reconnaissance de l'objet...")
             st.write("🧬 Analyse des matériaux et de la structure...")
             st.write("⚖️ Comparaison aux prix du marché nigérien...")
-            json_str, info_msg = analyze_image_pro(image, price_input, api_key)
+            json_str, info_msg = analyze_image_pro(images, price_input, api_key)
             if json_str:
                 status_box.update(label="✅ Rapport d'expertise généré", state="complete", expanded=False)
             else:
                 status_box.update(label="❌ Échec de l'analyse", state="error", expanded=False)
+        skeleton_placeholder.empty()
 
         if not json_str:
             st.session_state.last_analysis = {
-                "status": "error", "error_msg": info_msg, "image": image, "price": price_input
+                "status": "error", "error_msg": info_msg, "images": images, "price": price_input
             }
         else:
             try:
                 data = json.loads(json_str)
                 if not data.get("is_furniture"):
                     st.session_state.last_analysis = {
-                        "status": "not_furniture", "image": image, "price": price_input
+                        "status": "not_furniture", "images": images, "price": price_input
                     }
                 else:
                     global_score = int(data.get('scores', {}).get('global', 50))
@@ -1061,11 +1242,20 @@ if st.session_state.processing:
                         data.get('verdict_prix')
                     )
                     st.session_state.last_analysis = {
-                        "status": "success", "data": data, "image": image, "price": price_input
+                        "status": "success", "data": data, "images": images, "price": price_input
                     }
+                    st.session_state.history.insert(0, {
+                        "titre": data.get('titre', 'Meuble'),
+                        "verdict": data.get('verdict_prix', 'N/A'),
+                        "score": global_score,
+                        "price": price_input,
+                        "timestamp": datetime.now().strftime("%H:%M"),
+                        "snapshot": st.session_state.last_analysis,
+                    })
+                    st.session_state.history = st.session_state.history[:5]
             except json.JSONDecodeError:
                 st.session_state.last_analysis = {
-                    "status": "json_error", "image": image, "price": price_input
+                    "status": "json_error", "images": images, "price": price_input
                 }
 
         st.session_state.processing = False
