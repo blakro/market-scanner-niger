@@ -26,6 +26,11 @@ st.markdown("""
     /* Importation Police Exo 2 */
     @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;600;700;800;900&display=swap');
 
+    :root {
+        --track-color: #f3f4f6;
+        --circle-inner-bg: white;
+    }
+
     /* 1. POLICE GLOBALE */
     html, body, [class*="css"] {
         font-family: 'Exo 2', sans-serif;
@@ -241,7 +246,7 @@ st.markdown("""
         content: "";
         width: 108px;
         height: 108px;
-        background: white;
+        background: var(--circle-inner-bg, white);
         border-radius: 50%;
         position: absolute;
         box-shadow: inset 0 2px 6px rgba(0,0,0,0.04);
@@ -425,6 +430,17 @@ st.markdown("""
         background: #fff7ed !important;
     }
 
+    /* BOUTON POPOVER (ex: Partager) */
+    button[data-testid="stPopoverButton"],
+    button[data-testid="stPopoverButton"]:hover,
+    button[data-testid="stPopoverButton"]:focus,
+    button[data-testid="stPopoverButton"]:active,
+    button[kind="secondary"][data-testid="stPopoverButton"] {
+        background-color: white !important;
+        color: #ea580c !important;
+        border: 1.5px solid #ea580c !important;
+    }
+
     /* CAMÉRA */
     div[data-testid="stCameraInput"] button {
         background: linear-gradient(135deg, #ea580c, #f97316) !important;
@@ -490,6 +506,28 @@ st.markdown("""
     }
     .info-chip b { color: #1e3a8a !important; }
 
+    /* AVIS MENUISIER / TAPISSIER */
+    .avis-box {
+        margin-top: 14px;
+        padding: 14px;
+        background: #f9fafb;
+        border-radius: 10px;
+        font-size: 0.9em;
+        border-left: 3px solid #ea580c;
+    }
+
+    /* BANNIÈRE D'AVERTISSEMENT (prix/photo manquant) */
+    .warning-banner {
+        text-align: center;
+        color: #92400e !important;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        padding: 10px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.9em;
+    }
+
     /* CONSEIL FINAL */
     .advice-card {
         background: linear-gradient(135deg, #ecfdf5, #d1fae5);
@@ -552,7 +590,11 @@ st.markdown("""
 
     /* MODE SOMBRE (auto, basé sur les préférences système) */
     @media (prefers-color-scheme: dark) {
-        :root { color-scheme: dark; }
+        :root {
+            color-scheme: dark;
+            --track-color: #334155;
+            --circle-inner-bg: #1e293b;
+        }
 
         .stApp {
             background-color: #0f172a;
@@ -570,7 +612,14 @@ st.markdown("""
         }
         .tech-card { box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
         .price-box.highlight { background: #3a2a1a; border-color: #ea580c; }
-        .styled-table td { border-bottom-color: #334155; }
+        .price-box .pb-value { color: #e5e7eb !important; }
+        .price-box .pb-label { color: #94a3b8 !important; }
+        .styled-table td { border-bottom-color: #334155; color: #e5e7eb !important; }
+        .scenario-title { color: #cbd5e1 !important; }
+        .scenario-cost { color: #94a3b8 !important; }
+        .gauge-bg { background: #334155; }
+        .avis-box { background: #16202f; }
+        .warning-banner { background: #3a2412; border-color: #78350f; color: #fcd34d !important; }
         .skeleton-shimmer {
             background: linear-gradient(90deg, #1e293b 25%, #273449 50%, #1e293b 75%);
             background-size: 200% 100%;
@@ -598,6 +647,15 @@ st.markdown("""
         .info-chip b { color: #cfe2ff !important; }
         button[kind="secondary"] {
             background: #1e293b !important;
+        }
+        button[data-testid="stPopoverButton"],
+        button[data-testid="stPopoverButton"]:hover,
+        button[data-testid="stPopoverButton"]:focus,
+        button[data-testid="stPopoverButton"]:active,
+        button[kind="secondary"][data-testid="stPopoverButton"] {
+            background-color: #1e293b !important;
+            color: #f59e0b !important;
+            border-color: #f59e0b !important;
         }
         .streamlit-expanderHeader, div[data-testid="stExpander"] {
             background-color: #1e293b !important;
@@ -777,12 +835,18 @@ def analyze_image_pro(images, price, api_key):
 
     prompt = f"""
     Tu es un expert menuisier à Niamey (Niger). Analyse ce meuble (Prix demandé : {price} FCFA).
-    Tu reçois une ou plusieurs photos du même meuble (jusqu'à 3 angles différents) : croise les
-    informations entre les photos pour affiner ton diagnostic (structure, matériaux, défauts).
+    Tu reçois une ou plusieurs photos (jusqu'à 3 angles différents) qui doivent TOUTES montrer
+    LE MÊME meuble : croise les informations entre les photos pour affiner ton diagnostic
+    (structure, matériaux, défauts).
 
     Liste des objets acceptés : Canapé, fauteuil, table basse, meuble TV, lit, armoire, commode, chevet, table à manger, chaise, buffet, bureau, bibliothèque, console, meuble à chaussures, dressing, lit superposé, canapé-lit, banquette, table de cuisine, tabouret, meuble sous-vasque.
 
-    Si l'objet n'est PAS un meuble de cette liste (ou similaire), renvoie {{"is_furniture": false}}.
+    RÈGLE DE VALIDATION STRICTE : examine CHAQUE photo individuellement.
+    Si NE SERAIT-CE QU'UNE SEULE des photos fournies ne montre pas un meuble de cette liste
+    (objet différent, personne, animal, véhicule, photo floue/vide, etc.), OU si les photos
+    montrent visiblement des meubles différents (pas le même objet sous plusieurs angles),
+    renvoie {{"is_furniture": false}} pour l'ensemble de la soumission, même si une ou
+    plusieurs des autres photos sont valides.
 
     Sinon, renvoie un JSON valide STRICT :
     {{
@@ -896,6 +960,33 @@ with tab_cam:
     camera_img = st.camera_input("Cadrez le meuble", label_visibility="collapsed", key=f"camera_{wv}")
     if camera_img:
         img_files = [camera_img]
+    # Streamlit démarre toujours la caméra en mode "selfie" (avant) et n'expose pas
+    # de paramètre pour choisir la caméra arrière. On simule un clic (une seule fois
+    # par session, dès qu'il apparaît) sur son bouton interne "changer de caméra"
+    # pour basculer automatiquement sur la caméra arrière, plus adaptée à un meuble.
+    components.html("""
+        <script>
+        (function() {
+            if (window.parent.sessionStorage.getItem('gk_camera_switched')) return;
+            let attempts = 0;
+            const interval = setInterval(function() {
+                if (window.parent.sessionStorage.getItem('gk_camera_switched')) {
+                    clearInterval(interval);
+                    return;
+                }
+                attempts++;
+                const btn = window.parent.document.querySelector('[data-testid="stCameraInputSwitchButton"]');
+                if (btn) {
+                    window.parent.sessionStorage.setItem('gk_camera_switched', '1');
+                    btn.click();
+                    clearInterval(interval);
+                } else if (attempts > 40) {
+                    clearInterval(interval);
+                }
+            }, 250);
+        })();
+        </script>
+    """, height=0)
 
 with tab_upload:
     upload_imgs = st.file_uploader(
@@ -913,7 +1004,7 @@ with tab_upload:
 # --- PRIX ---
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown(
-    '<span style="font-weight:700; color:#1f2937 !important">💰 Prix annoncé par le vendeur (FCFA)</span>',
+    '<span style="font-weight:700;">💰 Prix annoncé par le vendeur (FCFA)</span>',
     unsafe_allow_html=True
 )
 price_input = st.number_input(
@@ -955,18 +1046,12 @@ if not has_image and not has_price:
     )
 elif has_image and not has_price:
     st.markdown(
-        '<div style="text-align:center; color:#92400e; background:#fffbeb; border:1px solid #fde68a; '
-        'padding:10px; border-radius:10px; font-weight:600; font-size:0.9em;">'
-        '⚠️ Saisissez le prix demandé pour lancer l\'analyse'
-        '</div>',
+        '<div class="warning-banner">⚠️ Saisissez le prix demandé pour lancer l\'analyse</div>',
         unsafe_allow_html=True
     )
 elif has_price and not has_image:
     st.markdown(
-        '<div style="text-align:center; color:#92400e; background:#fffbeb; border:1px solid #fde68a; '
-        'padding:10px; border-radius:10px; font-weight:600; font-size:0.9em;">'
-        '📷 Ajoutez une photo du meuble pour lancer l\'analyse'
-        '</div>',
+        '<div class="warning-banner">📷 Ajoutez une photo du meuble pour lancer l\'analyse</div>',
         unsafe_allow_html=True
     )
 
@@ -1091,9 +1176,9 @@ def render_result(result):
         st.markdown('<div class="tech-header">📊 Performance</div>', unsafe_allow_html=True)
         st.markdown(f"""
         <div class="score-circle-container">
-            <div class="score-circle" style="background: conic-gradient({col_main} {global_score}%, #f3f4f6 0);">
+            <div class="score-circle" style="background: conic-gradient({col_main} {global_score}%, var(--track-color, #f3f4f6) 0);">
                 <div style="position:absolute; text-align:center;">
-                    <div class="score-value" style="color:{col_main};">{global_score}%</div>
+                    <div class="score-value" style="color:{col_main} !important;">{global_score}%</div>
                     <span class="score-label">ÉTAT GLOBAL</span>
                 </div>
             </div>
@@ -1111,7 +1196,7 @@ def render_result(result):
             <div class="gauge-container">
                 <div class="gauge-label">
                     <span>{label}</span>
-                    <span style="color:{g_col};">{val}%</span>
+                    <span style="color:{g_col} !important;">{val}%</span>
                 </div>
                 <div class="gauge-bg">
                     <div class="gauge-fill" style="width: {val}%; background: linear-gradient(90deg, {g_col}99, {g_col});"></div>
@@ -1138,8 +1223,7 @@ def render_result(result):
         avis_menuisier_safe = html.escape(str(data.get('avis_menuisier', '')))
         avis_tapissier_safe = html.escape(str(data.get('avis_tapissier', '')))
         st.markdown(f"""
-        <div style="margin-top:14px; padding:14px; background:#f9fafb; border-radius:10px;
-                     font-size:0.9em; border-left: 3px solid #ea580c;">
+        <div class="avis-box">
             🪑 <b>Menuisier :</b> {avis_menuisier_safe}<br><br>
             🧵 <b>Tapissier :</b> {avis_tapissier_safe}
         </div>
@@ -1216,12 +1300,15 @@ def render_result(result):
                 st.code(summary, language=None)
                 components.html(f"""
                     <button id="share-btn" style="width:100%; padding:10px; border-radius:8px;
-                        border:1.5px solid #ea580c; background:white; color:#ea580c; font-weight:700;
-                        font-family:inherit; cursor:pointer;">
+                        font-weight:700; font-family:inherit; cursor:pointer;">
                         📱 Partager / Copier en un clic
                     </button>
                     <script>
                         const btn = document.getElementById('share-btn');
+                        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                        btn.style.background = isDark ? '#1e293b' : 'white';
+                        btn.style.color = isDark ? '#f59e0b' : '#ea580c';
+                        btn.style.border = '1.5px solid ' + (isDark ? '#f59e0b' : '#ea580c');
                         const text = {json.dumps(summary)};
                         btn.addEventListener('click', async () => {{
                             try {{
