@@ -1,7 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image, ImageOps
-import os
 from datetime import datetime
 import time
 import json
