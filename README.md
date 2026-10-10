@@ -1,62 +1,98 @@
-# **🛋️ Gaskiyar Kaya 🇳🇪**
+# 🛋️ Gaskiyar Kaya 🇳🇪
 
-**L'Expert Meuble IA pour le Niger. Analysez l'état et le prix des meubles d'occasion (Katako, Marketplace) en une photo. Propulsé par Google Gemini.**
+**L'expert meuble IA du Niger : une photo suffit pour connaître l'état d'un meuble d'occasion, son juste prix et la façon de le négocier.** Propulsé par Google Gemini.
 
-## **📖 À Propos (About)**
+👉 **[Ouvrir l'application](https://market-scanner-niger.streamlit.app)**
 
-**Gaskiyar Kaya** (signifiant *"La Vérité du Matériel"* en Haoussa) est une application web "Mobile First" conçue pour sécuriser les achats de meubles d'occasion au Niger.  
-Que vous soyez au marché de **Katako**, à **Wadata**, ou sur **Facebook Marketplace**, ne vous faites plus avoir sur la qualité ou le prix. Notre intelligence artificielle agit comme un expert menuisier dans votre poche.
+## 📖 À propos
 
-## **✨ Fonctionnalités Clés**
+**Gaskiyar Kaya** (*« La vérité du matériel »* en haoussa) est une application web pensée d'abord pour le téléphone, qui sécurise l'achat de meubles d'occasion au Niger.
 
-* 📸 **Analyse Multi-Angles** : Prenez une photo (Caméra) ou importez jusqu'à 3 photos depuis votre galerie pour croiser les angles et affiner le diagnostic.  
-* 🧠 **Cerveau IA Hybride** : Scanne automatiquement les modèles disponibles (Flash/Pro), avec mise en cache du modèle pour des analyses plus rapides.  
-* 🧬 **Analyse Matériaux Profonde** : Révèle la "vérité" sous le vernis (Vrai cuir vs Simili, Bois massif vs Contreplaqué).  
-* 🛡️ **Filtre Intelligent** : Rejette automatiquement les photos qui ne sont pas des meubles (Motos, Animaux, etc.).  
-* ⚖️ **Matrice de Décision** : Tableaux comparatifs clairs pour vous aider à décider : Réparer, Négocier ou Laisser tomber ?  
-* 🕘 **Historique de Session** : Retrouvez vos 5 dernières analyses, revoyez un rapport ou téléchargez le récapitulatif.  
-* 🌗 **Mode Sombre Automatique** : L'interface s'adapte aux préférences de votre téléphone ou navigateur.  
-* 📤 **Partage en 1 Clic** : Partagez ou copiez votre rapport (partage natif mobile avec repli presse-papier).  
-* 👍 **Feedback Utilisateur** : Donnez votre avis sur la pertinence de chaque verdict.  
-* 📐 **Guide de Cadrage** : Des conseils intégrés pour prendre une photo qui donne les meilleurs résultats.  
-* 🎨 **Design Moderne & Fluide** : Interface épurée aux couleurs chaudes du Niger, responsive du mobile au desktop.
+Au marché de **Katako**, à **Wadata** ou sur **Facebook Marketplace**, ne vous faites plus avoir sur la qualité ou le prix : l'IA joue le rôle d'un menuisier expert dans votre poche. Elle juge l'état et les matériaux du meuble, estime sa valeur sur le marché de Niamey et vous dit jusqu'où négocier.
 
-## **🚀 Comment l'utiliser ?**
+## ✨ Fonctionnalités
 
-1. **Accédez à l'app** : [market-scanner-niger.streamlit.app](https://www.google.com/search?q=https://market-scanner-niger.streamlit.app)  
-2. **Choisissez votre mode** : Onglet **📸 Prendre Photo** ou **📂 Galerie** (jusqu'à 3 photos).  
-3. **Entrez le prix** proposé par le vendeur (en FCFA).  
-4. Cliquez sur **🔍 Lancer l'analyse**.  
-5. Recevez votre audit technique complet en quelques secondes, partagez-le ou donnez votre avis avec 👍/👎.
+**L'analyse**
+* 📸 **Analyse multi-angles** : prenez une photo (la caméra arrière est sélectionnée automatiquement) ou importez jusqu'à 3 photos du même meuble pour affiner le diagnostic.
+* 🧬 **Matériaux et état** : la « vérité » sous le vernis (vrai cuir ou simili, bois massif ou contreplaqué), avec des notes de solidité, de qualité des matériaux et de facilité de restauration.
+* 🛡️ **Filtre intelligent** : les photos qui ne montrent pas un meuble (moto, animal...) sont refusées.
+* 📐 **Guide de cadrage** : des conseils intégrés pour prendre la photo qui donne les meilleurs résultats.
 
-## **🛠️ Installation Locale (Pour les développeurs)**
+**La décision**
+* 🎯 **Verdict clair** : « Bonne affaire », « Prix correct » ou « Trop cher », toujours cohérent avec l'estimation de prix, avec l'écart chiffré en FCFA.
+* 🤝 **Plan de négociation** : la 1ʳᵉ offre à proposer, le prix maximum à payer et les arguments concrets à utiliser face au vendeur.
+* 🔍 **À vérifier sur place** : les contrôles à faire avant de payer (tiroirs, termites, ressorts...), invisibles sur une photo.
+* ⚖️ **Scénarios d'action** : réparer, rhabiller (housse, vernis) ou négocier ?
+* 💡 **Estimation sans prix** : pas encore de prix du vendeur ? Obtenez la valeur estimée du meuble (pratique aussi pour vendre le vôtre).
 
-Si vous souhaitez contribuer au code :
+**Le confort**
+* 💬 **Partage WhatsApp en 1 clic** : envoyez le résumé (verdict, estimation, plan de négociation) à un proche pour avoir son avis, ou partagez/copiez-le.
+* 🕘 **Historique de session** : retrouvez vos 5 dernières analyses, revoyez un rapport ou téléchargez le récapitulatif.
+* 👍 **Avis utilisateur** : donnez votre avis sur chaque verdict ; il est enregistré avec l'analyse pour améliorer l'outil.
+* 🔁 **Reprise en un clic** après une coupure réseau, sans perdre la photo ni le prix saisis.
+* 🧠 **Choix automatique du modèle Gemini** (le modèle Flash stable le plus récent), mis en cache pour des analyses plus rapides.
+* 🎨 **Design moderne** aux couleurs chaudes du Niger, du mobile au grand écran, avec mode sombre automatique et contrastes renforcés pour une lecture en plein soleil.
 
-### **Pré-requis**
+## 🚀 Comment l'utiliser ?
 
-* Python 3.8+  
-* Clé API Google Gemini ([Google AI Studio](https://aistudio.google.com/))
+1. **Ouvrez l'application** sur votre téléphone : [market-scanner-niger.streamlit.app](https://market-scanner-niger.streamlit.app).
+2. **Ajoutez une photo** : onglet **📸 Prendre Photo**, ou **📂 Galerie** (jusqu'à 3 photos).
+3. **Entrez le prix** demandé par le vendeur, en FCFA. *Facultatif* : sans prix, vous obtenez la valeur estimée du meuble.
+4. Touchez **🔍 Lancer l'analyse**.
+5. Lisez le verdict, suivez le plan de négociation, faites les vérifications indiquées, puis envoyez le résumé sur WhatsApp ou donnez votre avis avec 👍/👎.
 
-### **Étapes**
+> ℹ️ Les estimations sont indicatives et réalisées par une IA à partir de vos photos : vérifiez toujours le meuble sur place avant de payer.
 
-1. **Cloner le dépôt :**  
-   git clone \[https://github.com/blakro/market-scanner-niger.git\](https://github.com/blakro/market-scanner-niger.git)  
+## 🛠️ Installation locale (développeurs)
+
+### Prérequis
+
+* Python 3.9 ou plus récent (3.10+ recommandé, pour profiter de la dernière version de Streamlit)
+* Une clé API Google Gemini ([Google AI Studio](https://aistudio.google.com/))
+
+### Étapes
+
+1. **Cloner le dépôt et installer les dépendances :**
+
+   ```bash
+   git clone https://github.com/blakro/market-scanner-niger.git
    cd market-scanner-niger
+   pip install -r requirements.txt
+   ```
 
-2. **Installer les dépendances :**  
-   pip install \-r requirements.txt
+2. **Configurer la clé API** dans le fichier `.streamlit/secrets.toml` (exclu de git) :
 
-3. Configurer la Clé API :  
-   Créez le fichier .streamlit/secrets.toml :  
-   GOOGLE\_API\_KEY \= "votre\_clé\_ici"
+   ```toml
+   GOOGLE_API_KEY = "votre_clé_ici"
+   ```
 
-4. **Lancer l'application :**  
+   Sans ce fichier, l'application propose de saisir la clé dans une section « Configuration Clé API ».
+
+3. **Lancer l'application :**
+
+   ```bash
    streamlit run app.py
+   ```
 
-## **📄 Licence**
+### Journal des analyses (optionnel)
 
-Distribué sous la licence **MIT**. Voir le fichier LICENSE pour plus d'informations.  
-\<div align="center"\>  
-Développé avec ❤️ pour le \<b\>Niger\</b\> 🇳🇪  
-\</div\>
+Si une connexion `gsheets` ([st-gsheets-connection](https://github.com/streamlit/gsheets-connection)) est configurée dans `.streamlit/secrets.toml`, chaque analyse réussie ajoute une ligne à l'onglet `Sheet1`, en arrière-plan (le client n'attend pas l'écriture) :
+`Date`, `Type_Meuble`, `Prix_FCFA` (vide si aucun prix saisi), `Score_Global`, `Verdict_IA`, `Estimation_Min_FCFA`, `Estimation_Max_FCFA`, `ID_Analyse` et `Avis_Client` (👍/👎, renseigné quand le client donne son avis). Les anciennes lignes sont conservées telles quelles.
+
+### Structure du projet
+
+| Fichier | Rôle |
+| --- | --- |
+| `app.py` | L'application Streamlit complète : interface, appel à Gemini, rapport, journal Google Sheets |
+| `requirements.txt` | Dépendances Python |
+| `.gitignore` | Exclut les secrets locaux (`.streamlit/secrets.toml`) et les fichiers temporaires Python |
+
+## 📄 Licence
+
+Distribué sous la licence **MIT**. Voir le fichier [LICENSE](LICENSE).
+
+<div align="center">
+
+Développé avec ❤️ pour le <b>Niger</b> 🇳🇪
+
+</div>
