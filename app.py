@@ -1,11 +1,12 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import google.generativeai as genai
-from PIL import Image
+from PIL import Image, ImageOps
 import os
 from datetime import datetime
 import time
 import json
+import math
 import re
 import html
 # Imports pour Google Sheets
@@ -686,8 +687,13 @@ components.html("""
 """, height=0)
 
 # --- ÉTAT DE SESSION ---
-if "widget_version" not in st.session_state:
-    st.session_state.widget_version = 0
+# Deux compteurs séparés : on peut vider la photo sans effacer le prix saisi.
+if "photo_version" not in st.session_state:
+    st.session_state.photo_version = 0
+if "price_version" not in st.session_state:
+    st.session_state.price_version = 0
+if "photo_cache" not in st.session_state:
+    st.session_state.photo_cache = {}
 if "last_analysis" not in st.session_state:
     st.session_state.last_analysis = None
 if "processing" not in st.session_state:
@@ -697,11 +703,18 @@ if "scroll_to_result" not in st.session_state:
 if "history" not in st.session_state:
     st.session_state.history = []
 
-def reset_analysis():
-    """Efface le résultat et force le reset des widgets (photo, prix)."""
+def reset_analysis(keep_price=False):
+    """Efface le résultat et force le reset des widgets (photo, et prix sauf si keep_price)."""
     st.session_state.last_analysis = None
     st.session_state.processing = False
-    st.session_state.widget_version += 1
+    st.session_state.photo_version += 1
+    if not keep_price:
+        st.session_state.price_version += 1
+    st.rerun()
+
+def relaunch_analysis():
+    """Relance l'analyse avec la même photo et le même prix (ex : après une coupure réseau)."""
+    st.session_state.processing = True
     st.rerun()
 
 # --- API KEY ---
@@ -724,25 +737,117 @@ def save_data_to_sheets(furniture_type, price, score, verdict):
             "Score_Global": score,
             "Verdict_IA": verdict
         }])
-        try:
-            existing_data = conn.read(worksheet="Sheet1", ttl=0)
-            if existing_data.empty:
-                updated_data = new_data
-            else:
-                updated_data = pd.concat([existing_data, new_data], ignore_index=True)
-        except Exception:
+        # Si la lecture échoue (réseau...), on n'écrit rien : conn.update() remplace
+        # toute la feuille, écrire la seule nouvelle ligne effacerait l'historique.
+        existing_data = conn.read(worksheet="Sheet1", ttl=0)
+        if existing_data.empty:
             updated_data = new_data
+        else:
+            updated_data = pd.concat([existing_data, new_data], ignore_index=True)
         conn.update(worksheet="Sheet1", data=updated_data)
     except Exception:
         pass
 
 # --- UTILITAIRES ---
-def clean_json_response(text):
-    text = text.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(json)?", "", text)
-        text = re.sub(r"```$", "", text)
-    return text.strip()
+def extract_json(text):
+    """Extrait l'objet JSON de la réponse de l'IA, même entouré de ```json ou de
+    texte ("Voici mon analyse : {...}"). Renvoie None si rien d'exploitable."""
+    text = (text or "").strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    candidates = [text]
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end > start:
+        candidates.append(text[start:end + 1])
+    for candidate in candidates:
+        try:
+            data = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            return data
+    return None
+
+def to_int(value, default=None):
+    """Convertit un nombre renvoyé par l'IA en entier : 72, 66.0, "72%", "66/100",
+    "90 000 FCFA", "90.000"... Renvoie default si aucun nombre n'est lisible."""
+    if value is None or isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)):
+        return int(round(value)) if math.isfinite(value) else default
+    match = re.search(r"\d[\d\s.,]*", str(value))
+    if not match:
+        return default
+    number = re.sub(r"\s", "", match.group()).rstrip(".,")
+    if re.fullmatch(r"\d{1,3}([.,]\d{3})+", number):  # séparateurs de milliers
+        number = re.sub(r"[.,]", "", number)
+    try:
+        return int(round(float(number.replace(",", "."))))
+    except ValueError:
+        return default
+
+def normalize_analysis(data):
+    """Valide et nettoie la réponse de l'IA (types inattendus, valeurs manquantes)
+    pour que l'affichage du rapport ne plante jamais."""
+    def text(value, default=""):
+        return str(value).strip() if value not in (None, "") else default
+
+    def text_list(value, limit):
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, list):
+            return []
+        items = []
+        for v in value:
+            if isinstance(v, dict):  # ex : [{"argument": "..."}]
+                v = " ".join(text(x) for x in v.values() if text(x))
+            if text(v):
+                items.append(text(v))
+        return items[:limit]
+
+    def dict_list(value, limit):
+        if not isinstance(value, list):
+            return []
+        return [v for v in value if isinstance(v, dict)][:limit]
+
+    raw_scores = data.get("scores") if isinstance(data.get("scores"), dict) else {}
+    scores = {}
+    for name in ("solidite", "materiaux", "restauration", "global"):
+        value = to_int(raw_scores.get(name))
+        scores[name] = None if value is None else max(0, min(100, value))
+    if scores["global"] is None:
+        parts = [v for k, v in scores.items() if k != "global" and v is not None]
+        scores["global"] = round(sum(parts) / len(parts)) if parts else 50
+
+    prix_min = to_int(data.get("prix_estime_min"))
+    prix_max = to_int(data.get("prix_estime_max"))
+    if not (prix_min and prix_max and prix_min > 0 and prix_max > 0):
+        prix_min = prix_max = None
+    elif prix_min > prix_max:
+        prix_min, prix_max = prix_max, prix_min
+
+    return {
+        "titre": text(data.get("titre"), "Meuble"),
+        "style": text(data.get("style")),
+        "verdict_prix": text(data.get("verdict_prix")),
+        "prix_estime_min": prix_min,
+        "prix_estime_max": prix_max,
+        "scores": scores,
+        "composition_materiau": dict_list(data.get("composition_materiau"), 6),
+        "avis_menuisier": text(data.get("avis_menuisier")),
+        "avis_tapissier": text(data.get("avis_tapissier")),
+        "scenarios": dict_list(data.get("scenarios"), 3),
+        "arguments_negociation": text_list(data.get("arguments_negociation"), 4),
+        "points_a_verifier": text_list(data.get("points_a_verifier"), 5),
+        "recommandation_finale": text(data.get("recommandation_finale")),
+    }
+
+def is_furniture_answer(data):
+    """Lit le champ is_furniture, y compris s'il est renvoyé en texte ("true", "oui")."""
+    value = data.get("is_furniture")
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "oui", "yes", "1")
+    return bool(value)
 
 def fmt_fcfa(n):
     """Formate un nombre en FCFA avec espaces : 125000 -> '125 000 FCFA'."""
@@ -782,21 +887,79 @@ def prepare_image_for_ai(image, max_dim=1280):
     img.thumbnail((max_dim, max_dim), Image.LANCZOS)
     return img
 
+def photo_key(uploaded_file):
+    return getattr(uploaded_file, "file_id", None) or f"{uploaded_file.name}-{uploaded_file.size}"
+
+def load_photo(uploaded_file):
+    """Ouvre une photo envoyée, la redresse selon son orientation EXIF (sinon les
+    photos de téléphone apparaissent couchées, pour l'utilisateur comme pour l'IA)
+    et la prépare pour l'analyse. Renvoie None si le fichier est illisible.
+    Mis en cache par fichier : pas de redécodage à chaque interaction."""
+    cache = st.session_state.photo_cache
+    key = photo_key(uploaded_file)
+    if key not in cache:
+        try:
+            img = ImageOps.exif_transpose(Image.open(uploaded_file))
+            cache[key] = prepare_image_for_ai(img)
+        except Exception:
+            cache[key] = None
+    return cache[key]
+
 def friendly_error_message(raw_msg):
     """Traduit une erreur technique (Gemini/réseau) en message compréhensible."""
     msg = str(raw_msg or "")
     low = msg.lower()
+    if "clé api manquante" in low:
+        return "Clé API manquante. Ouvrez la section Configuration ci-dessus."
+    if "aucune photo lisible" in low:
+        return "Aucune photo lisible. Ajoutez une photo JPG ou PNG du meuble."
     if "api key not valid" in low or "api_key_invalid" in low:
         return "Clé API invalide. Vérifiez-la dans la section Configuration ci-dessus."
-    if "429" in msg or "quota" in low or "surcharge" in low:
+    if is_overload_error(msg) or "quota" in low or "surcharge" in low:
         return "Le service IA est momentanément surchargé. Réessayez dans quelques secondes."
     if "timeout" in low or "deadline" in low:
         return "La connexion a pris trop de temps. Vérifiez votre réseau et réessayez."
     if "network" in low or "connection" in low or "resolve" in low:
         return "Problème de connexion réseau. Vérifiez votre connexion internet."
+    if "response.text" in low or "finish_reason" in low or "blocked" in low or "safety" in low:
+        return "L'IA n'a pas pu analyser cette photo. Essayez avec une autre photo, plus nette et bien cadrée."
+    if "404" in msg or "not found" in low:
+        return "Le modèle d'IA a changé. Réessayez : l'application va choisir automatiquement le bon modèle."
     return "Une erreur inattendue s'est produite pendant l'analyse. Réessayez avec une photo plus nette."
 
+def is_overload_error(msg):
+    """Erreurs temporaires côté Google (quota dépassé, modèle surchargé)."""
+    low = str(msg).lower()
+    return "429" in low or "503" in low or "overloaded" in low or "unavailable" in low
+
 # --- SCANNER MODÈLES GEMINI ---
+# Variantes spécialisées (voix, génération d'images, temps réel...) qui acceptent
+# generateContent mais ne savent pas analyser une photo et répondre en JSON.
+UNSUITABLE_MODEL_HINTS = ("tts", "image", "live", "audio", "embedding", "aqa",
+                          "robotics", "computer-use", "gemma", "learnlm")
+# Alias maintenu par Google vers le dernier modèle Flash (si la liste est inaccessible).
+FALLBACK_MODEL = "models/gemini-flash-latest"
+
+def pick_model(model_names):
+    """Choisit le meilleur modèle : Flash (rapide) stable de la version la plus
+    récente, puis Flash-Lite, puis Pro ; les préversions passent après."""
+    candidates = [n for n in model_names
+                  if not any(hint in n.lower() for hint in UNSUITABLE_MODEL_HINTS)]
+    if not candidates:
+        return model_names[0] if model_names else None
+
+    def rank(name):
+        low = name.lower()
+        version = re.search(r"gemini-(\d+(?:\.\d+)?)", low)
+        if "flash" in low:
+            family = 1 if "lite" in low else 0
+        else:
+            family = 2 if "pro" in low else 3
+        unstable = any(tag in low for tag in ("preview", "exp", "thinking"))
+        return (family, unstable, -float(version.group(1)) if version else 0.0)
+
+    return min(candidates, key=rank)
+
 def find_best_model_dynamic(api_key):
     # Le modèle disponible ne change pas en cours de session : on évite de
     # rappeler list_models() (aller-retour réseau) à chaque nouvelle analyse.
@@ -810,23 +973,15 @@ def find_best_model_dynamic(api_key):
                 available_models.append(m.name)
         if not available_models:
             return None, "Aucun modèle trouvé."
-        chosen = None
-        for m in available_models:
-            if 'flash' in m.lower():
-                chosen = m
-                break
-        if not chosen:
-            for m in available_models:
-                if 'pro' in m.lower() and 'vision' not in m.lower():
-                    chosen = m
-                    break
-        chosen = chosen or available_models[0]
+        chosen = pick_model(available_models)
         st.session_state.gemini_model_cache = {"api_key": api_key, "model": chosen}
         return chosen, None
     except Exception as e:
-        return "models/gemini-1.5-flash", str(e)
+        return FALLBACK_MODEL, str(e)
 
 # --- ANALYSE IA ---
+AI_TIMEOUT_SECONDS = 90
+
 def analyze_image_pro(images, price, api_key):
     genai.configure(api_key=api_key)
     model_name, scan_error = find_best_model_dynamic(api_key)
@@ -880,18 +1035,31 @@ def analyze_image_pro(images, price, api_key):
     - prix_estime_min et prix_estime_max sont en FCFA, cohérents avec le marché de Niamey (Katako, Wadata, Marketplace).
     """
 
+    def generate(json_mode=True):
+        # Mode JSON natif de Gemini : réponse directement exploitable (moins
+        # d'"Erreur de lecture"). Délai max pour ne pas bloquer sur un réseau lent.
+        config = {"response_mime_type": "application/json"} if json_mode else None
+        model = genai.GenerativeModel(model_name, generation_config=config)
+        response = model.generate_content(
+            [prompt, *images], request_options={"timeout": AI_TIMEOUT_SECONDS}
+        )
+        return response.text
+
     try:
-        model = genai.GenerativeModel(model_name)
-        response = model.generate_content([prompt, *images])
-        return clean_json_response(response.text), model_name
+        try:
+            return generate(), model_name
+        except Exception as e:
+            low = str(e).lower()
+            if "mime" in low or "json mode" in low:
+                return generate(json_mode=False), model_name
+            if is_overload_error(e):
+                time.sleep(2)
+                return generate(), model_name
+            raise
     except Exception as e:
-        if "429" in str(e):
-            time.sleep(2)
-            try:
-                response = model.generate_content([prompt, *images])
-                return clean_json_response(response.text), model_name
-            except Exception:
-                return None, "Surcharge serveur"
+        if "404" in str(e) or "not found" in str(e).lower():
+            # Modèle retiré entre-temps : on force un nouveau scan au prochain essai.
+            st.session_state.pop("gemini_model_cache", None)
         return None, str(e)
 
 # --- HERO ---
@@ -952,39 +1120,47 @@ if st.session_state.history:
         )
 
 # --- CAPTURE IMAGE ---
-wv = st.session_state.widget_version
+pv = st.session_state.photo_version
 tab_cam, tab_upload = st.tabs(["📸 Prendre Photo", "📂 Galerie"])
 img_files = []
 
 with tab_cam:
-    camera_img = st.camera_input("Cadrez le meuble", label_visibility="collapsed", key=f"camera_{wv}")
+    camera_img = st.camera_input("Cadrez le meuble", label_visibility="collapsed", key=f"camera_{pv}")
     if camera_img:
         img_files = [camera_img]
     # Streamlit démarre toujours la caméra en mode "selfie" (avant) et n'expose pas
     # de paramètre pour choisir la caméra arrière. On simule un clic (une seule fois
-    # par session, dès qu'il apparaît) sur son bouton interne "changer de caméra"
-    # pour basculer automatiquement sur la caméra arrière, plus adaptée à un meuble.
-    components.html("""
+    # par caméra affichée, dès qu'il apparaît) sur son bouton interne "changer de
+    # caméra" pour basculer automatiquement sur la caméra arrière, plus adaptée à un
+    # meuble. Le repère est posé sur l'élément caméra lui-même : quand elle est
+    # recréée en mode selfie ("Nouvelle analyse", rechargement de la page), le
+    # repère disparaît avec elle et la bascule est refaite.
+    components.html(f"""
         <script>
-        (function() {
-            if (window.parent.sessionStorage.getItem('gk_camera_switched')) return;
+        (function() {{
+            // photo_version {pv} : script relancé à chaque nouvelle caméra.
+            const doc = window.parent.document;
             let attempts = 0;
-            const interval = setInterval(function() {
-                if (window.parent.sessionStorage.getItem('gk_camera_switched')) {
+            const interval = setInterval(function() {{
+                attempts++;
+                const cam = doc.querySelector('[data-testid="stCameraInput"]');
+                if (cam && cam.dataset.gkRearCamera) {{
                     clearInterval(interval);
                     return;
-                }
-                attempts++;
-                const btn = window.parent.document.querySelector('[data-testid="stCameraInputSwitchButton"]');
-                if (btn) {
-                    window.parent.sessionStorage.setItem('gk_camera_switched', '1');
+                }}
+                // Selon la version de Streamlit, l'identifiant est sur le bouton
+                // lui-même ou sur un div qui l'enveloppe (un clic sur le div est sans effet).
+                const target = cam && cam.querySelector('[data-testid="stCameraInputSwitchButton"]');
+                const btn = target && (target.tagName === 'BUTTON' ? target : target.querySelector('button'));
+                if (btn) {{
+                    cam.dataset.gkRearCamera = '1';
                     btn.click();
                     clearInterval(interval);
-                } else if (attempts > 40) {
+                }} else if (attempts > 40) {{
                     clearInterval(interval);
-                }
-            }, 250);
-        })();
+                }}
+            }}, 250);
+        }})();
         </script>
     """, height=0)
 
@@ -994,12 +1170,33 @@ with tab_upload:
         type=["jpg", "png", "jpeg", "webp"],
         accept_multiple_files=True,
         label_visibility="collapsed",
-        key=f"upload_{wv}"
+        key=f"upload_{pv}"
     )
     if upload_imgs:
         img_files = upload_imgs[:3]
         if len(upload_imgs) > 3:
             st.caption("⚠️ Seules les 3 premières photos seront analysées.")
+
+# Décodage (mis en cache) dès l'ajout : une photo illisible est signalée tout de
+# suite au lieu de faire planter l'analyse.
+photos = []
+unreadable = []
+for f in img_files:
+    img = load_photo(f)
+    if img is None:
+        unreadable.append(f.name)
+    else:
+        photos.append(img)
+current_keys = {photo_key(f) for f in img_files}
+for key in list(st.session_state.photo_cache):
+    if key not in current_keys:
+        del st.session_state.photo_cache[key]
+if unreadable:
+    st.markdown(
+        '<div class="warning-banner">⚠️ Photo illisible ignorée : '
+        f'{html.escape(", ".join(unreadable))}. Essayez une photo JPG ou PNG.</div>',
+        unsafe_allow_html=True
+    )
 
 # --- PRIX ---
 st.markdown("<br>", unsafe_allow_html=True)
@@ -1015,7 +1212,7 @@ price_input = st.number_input(
     format="%d",
     label_visibility="collapsed",
     help="Entrez le prix proposé par le vendeur pour comparer à l'estimation IA.",
-    key=f"price_{wv}"
+    key=f"price_{st.session_state.price_version}"
 )
 if price_input > 0:
     st.markdown(
@@ -1029,7 +1226,7 @@ if price_input > 0:
         st.caption("⚠️ Ce prix semble très élevé pour un meuble d'occasion, vérifiez votre saisie.")
 
 # --- ÉTAT PRÊT ---
-has_image = len(img_files) > 0
+has_image = len(photos) > 0
 has_price = price_input > 0
 is_ready = has_image and has_price
 
@@ -1168,8 +1365,8 @@ def render_result(result):
                 pass
 
         # === PERFORMANCE (score circle + jauges dynamiques) ===
-        scores = data.get('scores', {})
-        global_score = int(scores.get('global', 50))
+        scores = data['scores']
+        global_score = scores['global']
         col_main, col_bg = score_color(global_score)
 
         st.markdown('<div class="tech-card">', unsafe_allow_html=True)
@@ -1186,11 +1383,12 @@ def render_result(result):
         """, unsafe_allow_html=True)
 
         gauges = [
-            ("🧱 Solidité Structurelle", int(scores.get('solidite', 0))),
-            ("💎 Qualité Matériaux",     int(scores.get('materiaux', 0))),
-            ("🛠️ Facilité Restauration", int(scores.get('restauration', 0))),
+            ("🧱 Solidité Structurelle", scores['solidite']),
+            ("💎 Qualité Matériaux",     scores['materiaux']),
+            ("🛠️ Facilité Restauration", scores['restauration']),
         ]
-        for label, val in gauges:
+        # Une jauge non fournie par l'IA est masquée plutôt qu'affichée à 0 %.
+        for label, val in [(lbl, v) for lbl, v in gauges if v is not None]:
             g_col, _ = score_color(val)
             st.markdown(f"""
             <div class="gauge-container">
@@ -1328,10 +1526,21 @@ def render_result(result):
                 st.caption("Ou sélectionnez le texte ci-dessus pour copier manuellement.")
         return
 
-    # Statuts sans rapport détaillé (erreur / non reconnu) : bouton pour recommencer
+    # Statuts sans rapport détaillé : on garde ce que l'utilisateur a déjà saisi.
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🔄 Réessayer", use_container_width=True, type="secondary", key="reset_other"):
-        reset_analysis()
+    if status == "not_furniture":
+        # Mauvaise photo : on vide seulement la photo, le prix reste rempli.
+        if st.button("📷 Changer de photo", use_container_width=True, type="primary", key="change_photo"):
+            reset_analysis(keep_price=True)
+    else:
+        # Erreur réseau / IA : relance avec la même photo et le même prix.
+        col_r1, col_r2 = st.columns(2)
+        with col_r1:
+            if st.button("🔁 Réessayer", use_container_width=True, type="primary", key="retry_same"):
+                relaunch_analysis()
+        with col_r2:
+            if st.button("🔄 Nouvelle analyse", use_container_width=True, type="secondary", key="reset_other"):
+                reset_analysis()
 
 
 # --- BOUTON D'ANALYSE (toujours visible, disabled si pas prêt ou en cours) ---
@@ -1349,11 +1558,17 @@ if launch_clicked and is_ready and not st.session_state.processing:
     st.rerun()
 
 if st.session_state.processing:
-    if not api_key:
-        st.error("⚠️ Clé API manquante. Ouvrez la section Configuration ci-dessus.")
+    if not api_key or not photos:
+        # Message conservé dans le résultat (un simple st.error disparaîtrait au rerun).
+        st.session_state.last_analysis = {
+            "status": "error",
+            "error_msg": "Clé API manquante" if not api_key else "Aucune photo lisible",
+            "images": photos, "price": price_input,
+        }
         st.session_state.processing = False
+        st.session_state.scroll_to_result = True
     else:
-        images = [prepare_image_for_ai(Image.open(f)) for f in img_files]
+        images = photos
         render_preview(images)
 
         # Squelette animé pendant le calcul (retiré dès que le résultat est prêt)
@@ -1372,48 +1587,47 @@ if st.session_state.processing:
             st.write("🔎 Reconnaissance de l'objet...")
             st.write("🧬 Analyse des matériaux et de la structure...")
             st.write("⚖️ Comparaison aux prix du marché nigérien...")
-            json_str, info_msg = analyze_image_pro(images, price_input, api_key)
-            if json_str:
+            raw_text, info_msg = analyze_image_pro(images, price_input, api_key)
+            if raw_text:
                 status_box.update(label="✅ Rapport d'expertise généré", state="complete", expanded=False)
             else:
                 status_box.update(label="❌ Échec de l'analyse", state="error", expanded=False)
         skeleton_placeholder.empty()
 
-        if not json_str:
+        raw_data = extract_json(raw_text) if raw_text else None
+        if not raw_text:
             st.session_state.last_analysis = {
                 "status": "error", "error_msg": info_msg, "images": images, "price": price_input
             }
+        elif raw_data is None:
+            st.session_state.last_analysis = {
+                "status": "json_error", "images": images, "price": price_input
+            }
+        elif not is_furniture_answer(raw_data):
+            st.session_state.last_analysis = {
+                "status": "not_furniture", "images": images, "price": price_input
+            }
         else:
-            try:
-                data = json.loads(json_str)
-                if not data.get("is_furniture"):
-                    st.session_state.last_analysis = {
-                        "status": "not_furniture", "images": images, "price": price_input
-                    }
-                else:
-                    global_score = int(data.get('scores', {}).get('global', 50))
-                    save_data_to_sheets(
-                        data.get('titre'),
-                        price_input,
-                        global_score,
-                        data.get('verdict_prix')
-                    )
-                    st.session_state.last_analysis = {
-                        "status": "success", "data": data, "images": images, "price": price_input
-                    }
-                    st.session_state.history.insert(0, {
-                        "titre": data.get('titre', 'Meuble'),
-                        "verdict": data.get('verdict_prix', 'N/A'),
-                        "score": global_score,
-                        "price": price_input,
-                        "timestamp": datetime.now().strftime("%H:%M"),
-                        "snapshot": st.session_state.last_analysis,
-                    })
-                    st.session_state.history = st.session_state.history[:5]
-            except json.JSONDecodeError:
-                st.session_state.last_analysis = {
-                    "status": "json_error", "images": images, "price": price_input
-                }
+            data = normalize_analysis(raw_data)
+            global_score = data["scores"]["global"]
+            save_data_to_sheets(
+                data["titre"],
+                price_input,
+                global_score,
+                data["verdict_prix"]
+            )
+            st.session_state.last_analysis = {
+                "status": "success", "data": data, "images": images, "price": price_input
+            }
+            st.session_state.history.insert(0, {
+                "titre": data["titre"],
+                "verdict": data["verdict_prix"] or "N/A",
+                "score": global_score,
+                "price": price_input,
+                "timestamp": datetime.now().strftime("%H:%M"),
+                "snapshot": st.session_state.last_analysis,
+            })
+            st.session_state.history = st.session_state.history[:5]
 
         st.session_state.processing = False
         st.session_state.scroll_to_result = True
