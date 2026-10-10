@@ -937,8 +937,8 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # META TAGS MOBILE (couleur de barre d'adresse + ajout à l'écran d'accueil "app-like")
-# Les scripts passent par st.html : components.html est déprécié (retrait annoncé
-# par Streamlit) et son iframe empêchait le partage natif du téléphone.
+# Les scripts passent par st.html (exécutés dans la page) : components.html est
+# déprécié et son retrait est annoncé par Streamlit.
 st.html("""
 <script>
 (function() {
@@ -1741,6 +1741,8 @@ def render_result(result):
         # Déduit du prix et de la fourchette : jamais en contradiction avec le comparateur.
         if verdict_key == "estimation" and prix_min:
             vh_sub = f"{fmt_range(prix_min, prix_max)} sur le marché de Niamey"
+        elif verdict_key == "estimation":
+            vh_sub = "Estimation indisponible pour cette photo : essayez un autre angle"
         else:
             vh_sub = verdict["sub"]
         st.markdown(
@@ -1935,10 +1937,10 @@ def render_result(result):
         with col_b:
             with st.popover("📤 Partager", width="stretch"):
                 st.code(summary, language=None, wrap_lines=True)
-                # Script exécuté dans la page (et non plus dans une iframe sans
-                # permission "web-share") : navigator.share ouvre la feuille de
-                # partage native du téléphone. "</" échappé : le texte vient de l'IA.
-                summary_js = json.dumps(summary).replace("</", "<\\/")
+                # Script exécuté dans la page via st.html (components.html est
+                # déprécié). "<" échappé : le texte vient de l'IA et ne doit pas
+                # pouvoir fermer la balise <script>.
+                summary_js = json.dumps(summary).replace("<", "\\u003c")
                 st.html(f"""
                     <button id="share-btn" style="width:100%; padding:10px; border-radius:8px;
                         font-weight:700; font-family:inherit; cursor:pointer;">
