@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import google.generativeai as genai
 from PIL import Image, ImageOps
 import os
@@ -11,6 +10,9 @@ import re
 import html
 import io
 import base64
+import queue
+import threading
+import uuid
 from urllib.parse import quote
 # Imports pour Google Sheets
 from streamlit_gsheets import GSheetsConnection
@@ -64,6 +66,23 @@ st.markdown("""
     .stNumberInput button {
         background-color: #f3f4f6 !important;
         color: #1f2937 !important;
+    }
+    .stNumberInput button:disabled {
+        color: #9ca3af !important;
+    }
+    /* En mode sombre, Streamlit colore ces icônes en blanc translucide :
+       invisibles sur le fond clair imposé ci-dessus. */
+    .stNumberInput button svg {
+        fill: currentColor !important;
+        color: currentColor !important;
+    }
+    /* Exemple affiché dans le champ vide : gris et non gras, pour ne pas être
+       confondu avec un prix déjà saisi (la règle ci-dessus force le noir). */
+    .stNumberInput input::placeholder {
+        color: #6b7280 !important;
+        -webkit-text-fill-color: #6b7280 !important;
+        font-weight: 500 !important;
+        opacity: 1;
     }
 
     /* 4. ONGLETS */
@@ -717,6 +736,32 @@ st.markdown("""
         border-radius: 10px;
         font-weight: 600;
         font-size: 0.9em;
+        margin-bottom: 1rem;
+    }
+
+    /* BANNIÈRE D'AIDE (information, non bloquante) */
+    .hint-banner {
+        text-align: center;
+        color: #1e3a8a !important;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        padding: 10px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.88em;
+        line-height: 1.45;
+        margin-bottom: 1rem;
+    }
+    /* MENTION "FACULTATIF" À CÔTÉ DU PRIX */
+    .optional-tag {
+        font-size: 0.72em;
+        font-weight: 600;
+        color: #4b5563 !important;
+        background: #f3f4f6;
+        border-radius: 100px;
+        padding: 2px 8px;
+        margin-left: 4px;
+        vertical-align: middle;
     }
 
     /* CONSEIL FINAL */
@@ -811,6 +856,8 @@ st.markdown("""
         .gauge-bg { background: #334155; }
         .avis-box { background: #16202f; }
         .warning-banner { background: #3a2412; border-color: #78350f; color: #fcd34d !important; }
+        .hint-banner { background: #1e2f4d; border-color: #2c4a75; color: #cfe2ff !important; }
+        .optional-tag { background: #334155; color: #cbd5e1 !important; }
         .skeleton-shimmer {
             background: linear-gradient(90deg, #1e293b 25%, #273449 50%, #1e293b 75%);
             background-size: 200% 100%;
@@ -838,6 +885,10 @@ st.markdown("""
         .info-chip b { color: #cfe2ff !important; }
         button[kind="secondary"] {
             background: #1e293b !important;
+        }
+        /* Le survol clair du mode jour rendait "Partager" illisible une fois ouvert */
+        button[kind="secondary"]:hover:not(:disabled) {
+            background: #273449 !important;
         }
         button[data-testid="stPopoverButton"],
         button[data-testid="stPopoverButton"]:hover,
@@ -886,10 +937,12 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # META TAGS MOBILE (couleur de barre d'adresse + ajout à l'écran d'accueil "app-like")
-components.html("""
+# Les scripts passent par st.html : components.html est déprécié (retrait annoncé
+# par Streamlit) et son iframe empêchait le partage natif du téléphone.
+st.html("""
 <script>
 (function() {
-    const head = window.parent.document.head;
+    const head = document.head;
     function addMeta(name, content) {
         if (head.querySelector(`meta[name="${name}"]`)) return;
         const m = document.createElement('meta');
@@ -903,7 +956,7 @@ components.html("""
     addMeta('apple-mobile-web-app-title', 'Gaskiyar Kaya');
 })();
 </script>
-""", height=0)
+""", unsafe_allow_javascript=True)
 
 # --- ÉTAT DE SESSION ---
 # Deux compteurs séparés : on peut vider la photo sans effacer le prix saisi.
@@ -946,26 +999,61 @@ if not api_key:
         api_key = st.text_input("Clé API Google Gemini", type="password")
 
 # --- SAUVEGARDE VERS GOOGLE SHEETS ---
-def save_data_to_sheets(furniture_type, price, score, verdict):
+def run_sheet_op(op):
+    """Ajoute la ligne d'une analyse, ou renseigne l'avis 👍/👎 du client sur sa ligne."""
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        new_data = pd.DataFrame([{
-            "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Type_Meuble": furniture_type,
-            "Prix_FCFA": price,
-            "Score_Global": score,
-            "Verdict_IA": verdict
-        }])
         # Si la lecture échoue (réseau...), on n'écrit rien : conn.update() remplace
         # toute la feuille, écrire la seule nouvelle ligne effacerait l'historique.
         existing_data = conn.read(worksheet="Sheet1", ttl=0)
-        if existing_data.empty:
-            updated_data = new_data
+        if op["kind"] == "analysis":
+            new_data = pd.DataFrame([op["row"]])
+            if existing_data.empty:
+                updated_data = new_data
+            else:
+                updated_data = pd.concat([existing_data, new_data], ignore_index=True)
         else:
-            updated_data = pd.concat([existing_data, new_data], ignore_index=True)
+            if existing_data.empty or "ID_Analyse" not in existing_data.columns:
+                return
+            match = existing_data["ID_Analyse"].astype(str) == op["id"]
+            if not match.any():
+                return
+            updated_data = existing_data.copy()
+            if "Avis_Client" not in updated_data.columns:
+                updated_data["Avis_Client"] = None
+            # Colonne souvent vide (lue en float) : on la passe en texte avant d'écrire.
+            updated_data["Avis_Client"] = updated_data["Avis_Client"].astype(object)
+            updated_data.loc[match, "Avis_Client"] = op["value"]
         conn.update(worksheet="Sheet1", data=updated_data)
     except Exception:
         pass
+
+@st.cache_resource
+def sheet_writer():
+    """File d'attente traitée par un fil d'exécution dédié, partagé par toutes les
+    sessions : les écritures Google Sheets (lecture + réécriture de la feuille) se
+    font en arrière-plan sans faire attendre le client, et une à la fois, donc deux
+    analyses simultanées ne peuvent plus s'écraser. (Les journaux peuvent afficher
+    "missing ScriptRunContext" pour ce fil : avertissement sans conséquence.)"""
+    ops = queue.Queue()
+
+    def work():
+        while True:
+            run_sheet_op(ops.get())
+
+    threading.Thread(target=work, daemon=True, name="gk-sheets-writer").start()
+    return ops
+
+def queue_sheet_op(op):
+    sheet_writer().put(op)
+
+def record_feedback(result, value):
+    """Mémorise l'avis 👍/👎 et l'enregistre (il n'était gardé qu'en session)."""
+    result["feedback"] = value
+    if result.get("id"):
+        queue_sheet_op({"kind": "feedback", "id": result["id"],
+                        "value": "👍" if value == "up" else "👎"})
+    st.rerun()
 
 # --- UTILITAIRES ---
 def extract_json(text):
@@ -1452,7 +1540,7 @@ if st.session_state.history:
                     f"{price_txt} · Score {entry['score']}% · {entry['timestamp']}"
                 )
             with col_h2:
-                if st.button("Revoir", key=f"hist_{i}", use_container_width=True):
+                if st.button("Revoir", key=f"hist_{i}", width="stretch"):
                     st.session_state.last_analysis = entry["snapshot"]
                     st.session_state.scroll_to_result = True
                     st.rerun()
@@ -1466,7 +1554,7 @@ if st.session_state.history:
             data=history_text,
             file_name="gaskiyar_kaya_historique.txt",
             mime="text/plain",
-            use_container_width=True,
+            width="stretch",
         )
 
 # --- CAPTURE IMAGE ---
@@ -1485,15 +1573,14 @@ with tab_cam:
     # meuble. Le repère est posé sur l'élément caméra lui-même : quand elle est
     # recréée en mode selfie ("Nouvelle analyse", rechargement de la page), le
     # repère disparaît avec elle et la bascule est refaite.
-    components.html(f"""
+    st.html(f"""
         <script>
         (function() {{
             // photo_version {pv} : script relancé à chaque nouvelle caméra.
-            const doc = window.parent.document;
             let attempts = 0;
             const interval = setInterval(function() {{
                 attempts++;
-                const cam = doc.querySelector('[data-testid="stCameraInput"]');
+                const cam = document.querySelector('[data-testid="stCameraInput"]');
                 if (cam && cam.dataset.gkRearCamera) {{
                     clearInterval(interval);
                     return;
@@ -1512,7 +1599,7 @@ with tab_cam:
             }}, 250);
         }})();
         </script>
-    """, height=0)
+    """, unsafe_allow_javascript=True)
 
 with tab_upload:
     upload_imgs = st.file_uploader(
@@ -1551,19 +1638,23 @@ if unreadable:
 # --- PRIX ---
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown(
-    '<span style="font-weight:700;">💰 Prix annoncé par le vendeur (FCFA)</span>',
+    '<span style="font-weight:700;">💰 Prix annoncé par le vendeur (FCFA)</span> '
+    '<span class="optional-tag">facultatif</span>',
     unsafe_allow_html=True
 )
+# Champ vide par défaut (plus de "0" à effacer avant de taper sur mobile).
 price_input = st.number_input(
     "Prix",
     min_value=0,
     step=5000,
-    value=0,
+    value=None,
     format="%d",
+    placeholder="Ex : 75000",
     label_visibility="collapsed",
-    help="Entrez le prix proposé par le vendeur pour comparer à l'estimation IA.",
+    help="Entrez le prix proposé par le vendeur pour savoir si c'est une bonne affaire. "
+         "Sans prix, vous obtenez l'estimation de sa valeur et un plan de négociation.",
     key=f"price_{st.session_state.price_version}"
-)
+) or 0
 if price_input > 0:
     st.markdown(
         f'<div style="text-align:right; font-size:0.85em; color:#6b7280; margin-top:-8px;">'
@@ -1576,29 +1667,27 @@ if price_input > 0:
         st.caption("⚠️ Ce prix semble très élevé pour un meuble d'occasion, vérifiez votre saisie.")
 
 # --- ÉTAT PRÊT ---
+# Seule la photo est indispensable : sans prix, l'IA estime la valeur du meuble
+# (utile avant de demander le prix au vendeur, ou pour vendre son propre meuble).
 has_image = len(photos) > 0
 has_price = price_input > 0
-is_ready = has_image and has_price
+is_ready = has_image
 
 # Message d'aide contextuel
 st.markdown("<br>", unsafe_allow_html=True)
-if not has_image and not has_price:
+if not has_image:
     st.markdown(
         '<div class="empty-state">'
         '<span class="bounce">📸</span>'
         '<div class="es-title">Prenez ou importez une photo pour commencer</div>'
-        '<div class="es-hint">Puis indiquez le prix demandé</div>'
+        '<div class="es-hint">Ajoutez le prix demandé pour savoir si c\'est une bonne affaire</div>'
         '</div>',
         unsafe_allow_html=True
     )
-elif has_image and not has_price:
+elif not has_price:
     st.markdown(
-        '<div class="warning-banner">⚠️ Saisissez le prix demandé pour lancer l\'analyse</div>',
-        unsafe_allow_html=True
-    )
-elif has_price and not has_image:
-    st.markdown(
-        '<div class="warning-banner">📷 Ajoutez une photo du meuble pour lancer l\'analyse</div>',
+        '<div class="hint-banner">💡 Sans prix, vous obtiendrez l\'estimation de sa valeur. '
+        'Ajoutez le prix du vendeur pour savoir si c\'est une bonne affaire.</div>',
         unsafe_allow_html=True
     )
 
@@ -1824,13 +1913,11 @@ def render_result(result):
             else:
                 fb_col1, fb_col2 = st.columns(2)
                 with fb_col1:
-                    if st.button("👍 Oui, pertinent", use_container_width=True, key="fb_up"):
-                        result["feedback"] = "up"
-                        st.rerun()
+                    if st.button("👍 Oui, pertinent", width="stretch", key="fb_up"):
+                        record_feedback(result, "up")
                 with fb_col2:
-                    if st.button("👎 Pas vraiment", use_container_width=True, key="fb_down"):
-                        result["feedback"] = "down"
-                        st.rerun()
+                    if st.button("👎 Pas vraiment", width="stretch", key="fb_down"):
+                        record_feedback(result, "down")
 
         # === ACTIONS : PARTAGER / NOUVELLE ANALYSE ===
         summary = build_summary(data, price_for_render, public_app_url())
@@ -1839,27 +1926,32 @@ def render_result(result):
         st.link_button(
             "💬 Envoyer sur WhatsApp",
             "https://wa.me/?text=" + quote(summary),
-            use_container_width=True,
+            width="stretch",
         )
         col_a, col_b = st.columns(2)
         with col_a:
-            if st.button("🔄 Nouvelle analyse", use_container_width=True, type="secondary", key="reset_success"):
+            if st.button("🔄 Nouvelle analyse", width="stretch", type="secondary", key="reset_success"):
                 reset_analysis()
         with col_b:
-            with st.popover("📤 Partager", use_container_width=True):
-                st.code(summary, language=None)
-                components.html(f"""
+            with st.popover("📤 Partager", width="stretch"):
+                st.code(summary, language=None, wrap_lines=True)
+                # Script exécuté dans la page (et non plus dans une iframe sans
+                # permission "web-share") : navigator.share ouvre la feuille de
+                # partage native du téléphone. "</" échappé : le texte vient de l'IA.
+                summary_js = json.dumps(summary).replace("</", "<\\/")
+                st.html(f"""
                     <button id="share-btn" style="width:100%; padding:10px; border-radius:8px;
                         font-weight:700; font-family:inherit; cursor:pointer;">
                         📱 Partager / Copier en un clic
                     </button>
                     <script>
+                    (function() {{
                         const btn = document.getElementById('share-btn');
                         const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                         btn.style.background = isDark ? '#1e293b' : 'white';
                         btn.style.color = isDark ? '#f59e0b' : '#c2410c';
                         btn.style.border = '1.5px solid ' + (isDark ? '#f59e0b' : '#ea580c');
-                        const text = {json.dumps(summary)};
+                        const text = {summary_js};
                         btn.addEventListener('click', async () => {{
                             try {{
                                 if (navigator.share) {{
@@ -1873,8 +1965,9 @@ def render_result(result):
                                 setTimeout(() => btn.innerText = '📱 Partager / Copier en un clic', 1500);
                             }} catch (e) {{ /* copie impossible : le texte reste sélectionnable ci-dessus */ }}
                         }});
+                    }})();
                     </script>
-                """, height=52)
+                """, unsafe_allow_javascript=True)
                 st.caption("Ou sélectionnez le texte ci-dessus pour copier manuellement.")
         return
 
@@ -1882,33 +1975,38 @@ def render_result(result):
     st.markdown("<br>", unsafe_allow_html=True)
     if status == "not_furniture":
         # Mauvaise photo : on vide seulement la photo, le prix reste rempli.
-        if st.button("📷 Changer de photo", use_container_width=True, type="primary", key="change_photo"):
+        if st.button("📷 Changer de photo", width="stretch", type="primary", key="change_photo"):
             reset_analysis(keep_price=True)
     else:
         # Erreur réseau / IA : relance avec la même photo et le même prix.
         col_r1, col_r2 = st.columns(2)
         with col_r1:
-            if st.button("🔁 Réessayer", use_container_width=True, type="primary", key="retry_same"):
+            if st.button("🔁 Réessayer", width="stretch", type="primary", key="retry_same"):
                 relaunch_analysis()
         with col_r2:
-            if st.button("🔄 Nouvelle analyse", use_container_width=True, type="secondary", key="reset_other"):
+            if st.button("🔄 Nouvelle analyse", width="stretch", type="secondary", key="reset_other"):
                 reset_analysis()
 
 
-# --- BOUTON D'ANALYSE (toujours visible, disabled si pas prêt ou en cours) ---
+# --- BOUTON D'ANALYSE (toujours visible, désactivé seulement pendant l'analyse) ---
+# Il n'est plus grisé tant que le formulaire est incomplet : sur mobile, le prix
+# tapé n'est validé qu'à la sortie du champ, donc le 1er tap sur un bouton grisé
+# ne faisait que valider le prix et il fallait toucher le bouton une 2e fois.
 launch_clicked = st.button(
     "🔍 Lancer l'analyse",
     type="primary",
-    disabled=not is_ready or st.session_state.processing,
-    use_container_width=True
+    disabled=st.session_state.processing,
+    width="stretch"
 )
 
 # Un clic passe d'abord en état "processing" + rerun immédiat : le bouton se
 # grise et le spinner apparaît tout de suite, avant même l'appel (bloquant) à
 # l'IA. Ça évite aussi les doubles clics qui déclencheraient deux appels payants.
-if launch_clicked and is_ready and not st.session_state.processing:
-    st.session_state.processing = True
-    st.rerun()
+if launch_clicked and not st.session_state.processing:
+    if is_ready:
+        st.session_state.processing = True
+        st.rerun()
+    st.toast("Ajoutez d'abord une photo du meuble (onglet 📸 ou 📂).", icon="📷")
 
 if st.session_state.processing:
     if not api_key or not photos:
@@ -1964,14 +2062,22 @@ if st.session_state.processing:
             data = normalize_analysis(raw_data)
             global_score = data["scores"]["global"]
             verdict_key = price_verdict(price_input, data)
-            save_data_to_sheets(
-                data["titre"],
-                price_input,
-                global_score,
-                VERDICTS[verdict_key]["sheet"]
-            )
+            # Identifiant de ligne : permet d'y rattacher ensuite l'avis 👍/👎 du client.
+            analysis_id = "GK-" + uuid.uuid4().hex[:10]
+            queue_sheet_op({"kind": "analysis", "row": {
+                "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "Type_Meuble": data["titre"],
+                "Prix_FCFA": price_input or None,
+                "Score_Global": global_score,
+                "Verdict_IA": VERDICTS[verdict_key]["sheet"],
+                "Estimation_Min_FCFA": data["prix_estime_min"],
+                "Estimation_Max_FCFA": data["prix_estime_max"],
+                "ID_Analyse": analysis_id,
+                "Avis_Client": None,
+            }})
             st.session_state.last_analysis = {
-                "status": "success", "data": data, "images": images, "price": price_input
+                "status": "success", "id": analysis_id, "data": data,
+                "images": images, "price": price_input
             }
             st.session_state.history.insert(0, {
                 "titre": data["titre"],
@@ -1993,16 +2099,19 @@ if st.session_state.last_analysis:
     st.markdown('<div id="result-top"></div>', unsafe_allow_html=True)
     render_result(st.session_state.last_analysis)
     if st.session_state.pop("scroll_to_result", False):
-        components.html(
-            """
+        # Le jeton unique rend le contenu différent à chaque fois : le script est
+        # bien ré-exécuté même si l'élément précédent est encore affiché.
+        st.html(
+            f"""
             <script>
-                setTimeout(function() {
-                    var el = window.parent.document.getElementById('result-top');
-                    if (el) { el.scrollIntoView({behavior: 'smooth', block: 'start'}); }
-                }, 150);
+                // {uuid.uuid4().hex}
+                setTimeout(function() {{
+                    var el = document.getElementById('result-top');
+                    if (el) {{ el.scrollIntoView({{behavior: 'smooth', block: 'start'}}); }}
+                }}, 150);
             </script>
             """,
-            height=0,
+            unsafe_allow_javascript=True,
         )
 
 # --- FOOTER ---
