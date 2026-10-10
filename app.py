@@ -8,6 +8,7 @@ import json
 import math
 import re
 import html
+import inspect
 import io
 import base64
 import queue
@@ -936,13 +937,26 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# INSERTION DE HTML + JAVASCRIPT
+# components.html est déprécié (retrait annoncé par Streamlit) : on utilise
+# st.html(unsafe_allow_javascript=True), disponible à partir de Streamlit 1.52.
+# Cette version exige Python 3.10 : une app restée en Python 3.9 garde une version
+# plus ancienne de Streamlit, d'où le repli sur components.html. Les scripts visent
+# window.parent.document, valable dans les deux cas (page directe ou iframe).
+HTML_SUPPORTS_JS = "unsafe_allow_javascript" in inspect.signature(st.html).parameters
+
+def inject_html(code, height=0):
+    if HTML_SUPPORTS_JS:
+        st.html(code, unsafe_allow_javascript=True)
+    else:
+        import streamlit.components.v1 as components
+        components.html(code, height=height)
+
 # META TAGS MOBILE (couleur de barre d'adresse + ajout à l'écran d'accueil "app-like")
-# Les scripts passent par st.html (exécutés dans la page) : components.html est
-# déprécié et son retrait est annoncé par Streamlit.
-st.html("""
+inject_html("""
 <script>
 (function() {
-    const head = document.head;
+    const head = window.parent.document.head;
     function addMeta(name, content) {
         if (head.querySelector(`meta[name="${name}"]`)) return;
         const m = document.createElement('meta');
@@ -956,7 +970,7 @@ st.html("""
     addMeta('apple-mobile-web-app-title', 'Gaskiyar Kaya');
 })();
 </script>
-""", unsafe_allow_javascript=True)
+""")
 
 # --- ÉTAT DE SESSION ---
 # Deux compteurs séparés : on peut vider la photo sans effacer le prix saisi.
@@ -1573,14 +1587,14 @@ with tab_cam:
     # meuble. Le repère est posé sur l'élément caméra lui-même : quand elle est
     # recréée en mode selfie ("Nouvelle analyse", rechargement de la page), le
     # repère disparaît avec elle et la bascule est refaite.
-    st.html(f"""
+    inject_html(f"""
         <script>
         (function() {{
             // photo_version {pv} : script relancé à chaque nouvelle caméra.
             let attempts = 0;
             const interval = setInterval(function() {{
                 attempts++;
-                const cam = document.querySelector('[data-testid="stCameraInput"]');
+                const cam = window.parent.document.querySelector('[data-testid="stCameraInput"]');
                 if (cam && cam.dataset.gkRearCamera) {{
                     clearInterval(interval);
                     return;
@@ -1599,7 +1613,7 @@ with tab_cam:
             }}, 250);
         }})();
         </script>
-    """, unsafe_allow_javascript=True)
+    """)
 
 with tab_upload:
     upload_imgs = st.file_uploader(
@@ -1937,11 +1951,10 @@ def render_result(result):
         with col_b:
             with st.popover("📤 Partager", width="stretch"):
                 st.code(summary, language=None, wrap_lines=True)
-                # Script exécuté dans la page via st.html (components.html est
-                # déprécié). "<" échappé : le texte vient de l'IA et ne doit pas
-                # pouvoir fermer la balise <script>.
+                # "<" échappé : le texte vient de l'IA et ne doit pas pouvoir fermer
+                # la balise <script>.
                 summary_js = json.dumps(summary).replace("<", "\\u003c")
-                st.html(f"""
+                inject_html(f"""
                     <button id="share-btn" style="width:100%; padding:10px; border-radius:8px;
                         font-weight:700; font-family:inherit; cursor:pointer;">
                         📱 Partager / Copier en un clic
@@ -1969,7 +1982,7 @@ def render_result(result):
                         }});
                     }})();
                     </script>
-                """, unsafe_allow_javascript=True)
+                """, height=52)
                 st.caption("Ou sélectionnez le texte ci-dessus pour copier manuellement.")
         return
 
@@ -2103,17 +2116,16 @@ if st.session_state.last_analysis:
     if st.session_state.pop("scroll_to_result", False):
         # Le jeton unique rend le contenu différent à chaque fois : le script est
         # bien ré-exécuté même si l'élément précédent est encore affiché.
-        st.html(
+        inject_html(
             f"""
             <script>
                 // {uuid.uuid4().hex}
                 setTimeout(function() {{
-                    var el = document.getElementById('result-top');
+                    var el = window.parent.document.getElementById('result-top');
                     if (el) {{ el.scrollIntoView({{behavior: 'smooth', block: 'start'}}); }}
                 }}, 150);
             </script>
-            """,
-            unsafe_allow_javascript=True,
+            """
         )
 
 # --- FOOTER ---
