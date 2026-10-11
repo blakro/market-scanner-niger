@@ -47,8 +47,8 @@ st.markdown("""
         color: #1f2937 !important;
     }
 
-    /* 3. INPUTS LISIBLES (fix Dark Mode) */
-    .stNumberInput input {
+    /* 3. INPUTS LISIBLES (fix Dark Mode) : prix et précisions sur l'offre */
+    .stNumberInput input, .stTextInput input {
         background-color: #ffffff !important;
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
@@ -59,7 +59,7 @@ st.markdown("""
         border-radius: 10px !important;
         transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .stNumberInput input:focus {
+    .stNumberInput input:focus, .stTextInput input:focus {
         border-color: #ea580c !important;
         box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15) !important;
     }
@@ -77,12 +77,18 @@ st.markdown("""
         color: currentColor !important;
     }
     /* Exemple affiché dans le champ vide : gris et non gras, pour ne pas être
-       confondu avec un prix déjà saisi (la règle ci-dessus force le noir). */
-    .stNumberInput input::placeholder {
+       confondu avec une saisie (la règle ci-dessus force le noir). */
+    .stNumberInput input::placeholder, .stTextInput input::placeholder {
         color: #6b7280 !important;
         -webkit-text-fill-color: #6b7280 !important;
         font-weight: 500 !important;
         opacity: 1;
+    }
+    /* Indication de Streamlit en anglais (« Press Enter to apply ») : inutile, la saisie
+       est prise en compte dès qu'on quitte le champ ou qu'on lance l'analyse, et elle
+       chevauchait le texte tapé dans le champ des précisions. */
+    [data-testid="InputInstructions"] {
+        display: none !important;
     }
 
     /* 4. ONGLETS */
@@ -983,7 +989,8 @@ inject_html("""
 """)
 
 # --- ÉTAT DE SESSION ---
-# Deux compteurs séparés : on peut vider la photo sans effacer le prix saisi.
+# Deux compteurs séparés : on peut vider la photo sans effacer le prix (ni les
+# précisions sur l'offre) déjà saisis.
 if "photo_version" not in st.session_state:
     st.session_state.photo_version = 0
 if "price_version" not in st.session_state:
@@ -1000,7 +1007,8 @@ if "history" not in st.session_state:
     st.session_state.history = []
 
 def reset_analysis(keep_price=False):
-    """Efface le résultat et force le reset des widgets (photo, et prix sauf si keep_price)."""
+    """Efface le résultat et force le reset des widgets (photo, et prix + précisions
+    sur l'offre sauf si keep_price)."""
     st.session_state.last_analysis = None
     st.session_state.processing = False
     st.session_state.photo_version += 1
@@ -1009,7 +1017,8 @@ def reset_analysis(keep_price=False):
     st.rerun()
 
 def relaunch_analysis():
-    """Relance l'analyse avec la même photo et le même prix (ex : après une coupure réseau)."""
+    """Relance l'analyse avec les mêmes photos, le même prix et les mêmes précisions
+    (ex : après une coupure réseau)."""
     st.session_state.processing = True
     st.rerun()
 
@@ -1460,7 +1469,7 @@ def find_best_model_dynamic(api_key):
 # par une erreur de surcharge ou refuse le mode JSON : jamais après un délai dépassé.
 AI_TIMEOUT_SECONDS = 120
 
-def analyze_image_pro(images, price, api_key):
+def analyze_image_pro(images, price, api_key, offer_details=""):
     genai.configure(api_key=api_key)
     model_name, scan_error = find_best_model_dynamic(api_key)
     if not model_name:
@@ -1470,22 +1479,39 @@ def analyze_image_pro(images, price, api_key):
         price_context = f"Prix demandé par le vendeur : {price} FCFA"
     else:
         price_context = "le vendeur n'a pas encore donné de prix : estime seulement sa valeur"
+    # Précisions du client (ex : "salon 7 places") : indispensables quand le vendeur
+    # n'a photographié qu'une partie de l'ensemble, pour estimer l'offre complète.
+    offer_context = (
+        f"\n    Le client précise ce que propose le vendeur : « {offer_details} ». Sers-t'en pour "
+        "connaître la composition de l'offre (nombre de places, pièces comprises...), y compris "
+        "les pièces absentes des photos."
+        if offer_details else ""
+    )
     prompt = f"""
-    Tu es un expert menuisier à Niamey (Niger). Analyse ce meuble ({price_context}).
-    Tu reçois une ou plusieurs photos (jusqu'à {MAX_PHOTOS} angles différents) qui doivent TOUTES montrer
-    LE MÊME meuble : croise les informations entre les photos pour affiner ton diagnostic
-    (structure, matériaux, défauts).
+    Tu es un expert menuisier à Niamey (Niger). Analyse ce meuble ou cet ensemble de meubles ({price_context}).{offer_context}
+    Tu reçois une ou plusieurs photos (jusqu'à {MAX_PHOTOS}) d'UNE MÊME OFFRE : soit un seul meuble
+    (plusieurs angles, gros plans), soit un ENSEMBLE ASSORTI vendu en une fois (ex : salon 7 places
+    = canapés + fauteuils, chambre à coucher = lit + armoire + chevets, table + chaises).
+    Croise les informations entre les photos pour affiner ton diagnostic (structure, matériaux, défauts).
 
-    Liste des objets acceptés : Canapé, fauteuil, table basse, meuble TV, lit, armoire, commode, chevet, table à manger, chaise, buffet, bureau, bibliothèque, console, meuble à chaussures, dressing, lit superposé, canapé-lit, banquette, table de cuisine, tabouret, meuble sous-vasque.
+    Liste des objets acceptés : Canapé, fauteuil, table basse, meuble TV, lit, armoire, commode, chevet, table à manger, chaise, buffet, bureau, bibliothèque, console, meuble à chaussures, dressing, lit superposé, canapé-lit, banquette, table de cuisine, tabouret, meuble sous-vasque, et les ensembles de ces meubles (salon complet, chambre à coucher, salle à manger).
 
-    RÈGLE DE VALIDATION STRICTE : examine CHAQUE photo individuellement.
-    Une photo de DÉTAIL du même meuble (gros plan sur le tissu, le bois, un pied, un tiroir,
-    une charnière, une rayure, un assemblage...) est VALIDE, même si le meuble n'y apparaît
-    pas en entier : c'est justement ce qui permet un diagnostic précis.
-    En revanche, si NE SERAIT-CE QU'UNE SEULE des photos montre autre chose (objet différent,
-    personne, animal, véhicule, photo totalement floue ou vide, etc.), OU si les photos
-    montrent clairement des meubles différents, renvoie pour l'ensemble de la soumission,
-    même si les autres photos sont valides :
+    RÈGLE DE VALIDATION STRICTE : examine CHAQUE photo individuellement et juge son SUJET PRINCIPAL.
+    Sont VALIDES :
+    - une photo de DÉTAIL (gros plan sur le tissu, le bois, un pied, un tiroir, une charnière,
+      une rayure, un assemblage...), même si le meuble n'y apparaît pas en entier : c'est
+      justement ce qui permet un diagnostic précis ;
+    - les photos des différentes PIÈCES d'un même ensemble, prises séparément (le vendeur n'a pas
+      toujours de vue d'ensemble) : on les reconnaît au même tissu, à la même couleur, à la même
+      finition ou au même style ;
+    - une capture d'écran d'annonce (Marketplace, WhatsApp...) : ignore l'interface du téléphone
+      (barre d'état, boutons, bandes noires).
+    Le décor autour du meuble (tapis, rideaux, objets posés, autre meuble au second plan) n'est
+    jamais un motif de refus.
+    En revanche, si NE SERAIT-CE QU'UNE SEULE des photos a pour sujet autre chose qu'un meuble
+    (personne, animal, véhicule, autre objet) ou est totalement floue ou vide, OU si les photos
+    montrent des meubles sans rapport entre eux (ni le même meuble, ni le même ensemble), renvoie
+    pour l'ensemble de la soumission, même si les autres photos sont valides :
     {{"is_furniture": false, "raison_refus": "Explication courte pour l'utilisateur, ex : La photo 2 montre une moto."}}
 
     Sinon, renvoie un JSON valide STRICT :
@@ -1524,13 +1550,21 @@ def analyze_image_pro(images, price, api_key):
     RÈGLES :
     - Les scores sont sur 100.
     - prix_estime_min et prix_estime_max sont des nombres entiers en FCFA : la valeur d'occasion
-      de CE meuble dans son état réel, cohérente avec le marché de Niamey (Katako, Wadata, Marketplace).
+      de CE meuble (ou de TOUT l'ensemble) dans son état réel, cohérente avec le marché de Niamey
+      (Katako, Wadata, Marketplace).
+    - Pour un ensemble : "titre" donne sa composition (ex : "Salon 7 places : canapé 3 places +
+      canapé 2 places + 2 fauteuils") ; prix, scores et avis portent sur l'ensemble complet, y
+      compris les pièces annoncées par le client mais absentes des photos (suppose-les dans le
+      même état et ajoute dans points_a_verifier de les examiner sur place). Si un meuble visible
+      n'est peut-être pas compris dans l'offre (ex : table basse), ajoute dans points_a_verifier
+      de demander au vendeur s'il est inclus dans le prix.
     - verdict_prix compare le prix demandé à ta fourchette : "Affaire" s'il est en dessous,
       "Correct" s'il est dedans, "Cher" s'il est au-dessus (vide si aucun prix n'est donné).
     - arguments_negociation : 2 ou 3 arguments courts et concrets, tirés des défauts visibles
       sur les photos (liste vide si le meuble n'a pas de défaut visible).
-    - points_a_verifier : 2 à 4 vérifications rapides adaptées à ce meuble, impossibles à voir
-      sur photo (tiroirs, portes, pieds, termites, odeurs, ressorts, mousse...).
+    - points_a_verifier : 2 à 4 vérifications rapides adaptées à ce meuble (5 au plus pour un
+      ensemble), impossibles à voir sur photo (tiroirs, portes, pieds, termites, odeurs, ressorts,
+      mousse...).
     - Écris en français simple, avec des phrases courtes.
     """
 
@@ -1574,7 +1608,7 @@ st.markdown("""
 st.markdown(f"""
 <div class="info-chip">
     <span style="font-size:1.2em;">ℹ️</span>
-    <div><b>Une photo suffit</b>, ajoutez jusqu'à {MAX_PHOTOS} angles pour une analyse plus précise. JPG · PNG · WEBP</div>
+    <div><b>Une photo suffit</b>, ajoutez jusqu'à {MAX_PHOTOS} photos (autres angles, détails ou pièces d'un même ensemble) pour une analyse plus précise. JPG · PNG · WEBP</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1583,6 +1617,7 @@ with st.expander("📐 Conseils pour une photo réussie"):
 - ✅ **Lumière naturelle** : évitez le flash direct qui écrase les détails.
 - ✅ Cadrez **tout le meuble**, y compris les pieds et les angles.
 - ✅ Ajoutez une **photo de détail** (rayure, tissu, assemblage) si vous le pouvez.
+- ✅ Pour un **ensemble** (salon, chambre...), photographiez chaque pièce et précisez sa composition sous le prix (ex : salon 7 places).
 - ❌ Évitez les photos floues ou prises de trop loin.
 - ❌ Évitez les arrière-plans encombrés qui perturbent l'analyse.
 """)
@@ -1663,7 +1698,7 @@ with tab_cam:
 
 with tab_upload:
     upload_imgs = st.file_uploader(
-        f"Choisir une ou plusieurs images (max {MAX_PHOTOS} angles)",
+        f"Choisir une ou plusieurs images (max {MAX_PHOTOS} photos)",
         type=["jpg", "png", "jpeg", "webp"],
         accept_multiple_files=True,
         label_visibility="collapsed",
@@ -1834,6 +1869,24 @@ if price_input > 0:
     elif price_input > 3_000_000:
         st.caption("⚠️ Ce prix semble très élevé pour un meuble d'occasion, vérifiez votre saisie.")
 
+# --- PRÉCISIONS SUR L'OFFRE ---
+# Ce que les photos ne montrent pas toujours (ex : salon 7 places photographié pièce
+# par pièce, matelas compris ou non) : l'IA estime alors l'offre complète.
+st.markdown(
+    '<span style="font-weight:700;">📝 Ce que propose le vendeur</span> '
+    '<span class="optional-tag">facultatif</span>',
+    unsafe_allow_html=True
+)
+offer_details = " ".join(st.text_input(
+    "Ce que propose le vendeur",
+    max_chars=150,
+    placeholder="Ex : salon 7 places, table basse comprise",
+    label_visibility="collapsed",
+    help="Précisez ce que comprend l'offre si les photos ne montrent pas tout : "
+         "nombre de places, pièces comprises, matelas...",
+    key=f"offer_{st.session_state.price_version}"
+).split())
+
 # --- ÉTAT PRÊT ---
 # Seule la photo est indispensable : sans prix, l'IA estime la valeur du meuble
 # (utile avant de demander le prix au vendeur, ou pour vendre son propre meuble).
@@ -1889,7 +1942,8 @@ def render_result(result):
             f'{reason_html}'
             '<div class="error-text">'
             'Objets acceptés : Tables, Lits, Canapés, Armoires, Fauteuils, Commodes, Bureaux, Chaises... '
-            'Toutes les photos doivent montrer le même meuble (les gros plans de détail sont acceptés).'
+            'Toutes les photos doivent montrer le même meuble ou les pièces d\'un même ensemble '
+            '(salon, chambre...) ; les gros plans de détail sont acceptés.'
             '</div></div>',
             unsafe_allow_html=True
         )
@@ -2214,7 +2268,7 @@ if st.session_state.processing:
             st.write("🔎 Reconnaissance de l'objet...")
             st.write("🧬 Analyse des matériaux et de la structure...")
             st.write("⚖️ Comparaison aux prix du marché nigérien...")
-            raw_text, info_msg = analyze_image_pro(images, price_input, api_key)
+            raw_text, info_msg = analyze_image_pro(images, price_input, api_key, offer_details)
             if raw_text:
                 status_box.update(label="✅ Rapport d'expertise généré", state="complete", expanded=False)
             else:
