@@ -2233,7 +2233,9 @@ if launch_clicked and not st.session_state.processing:
     if is_ready:
         st.session_state.processing = True
         st.rerun()
-    st.toast("Ajoutez d'abord une photo du meuble (onglet 📸 ou 📂).", icon="📷")
+    # Aussi affiché si les photos choisies sont encore en préparation ou en cours d'envoi.
+    st.toast("Ajoutez d'abord une photo (onglet 📸 ou 📂), ou patientez si vos photos "
+             "sont en cours d'envoi.", icon="📷")
 
 if st.session_state.processing:
     if not api_key or not photos:
