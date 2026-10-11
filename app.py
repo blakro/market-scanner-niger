@@ -660,6 +660,7 @@ st.markdown("""
     /* PREVIEW IMAGE */
     .preview-wrap {
         display: flex;
+        flex-wrap: wrap;  /* 4 ou 5 photos : 3 miniatures par rangée, sans déborder */
         justify-content: center;
         gap: 8px;
         margin: 10px 0 14px;
@@ -1332,7 +1333,7 @@ def image_to_data_uri(img, max_dim=480):
     return "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode()
 
 def render_preview(previews):
-    """Affiche 1 à 3 photos centrées : une grande, ou une rangée de miniatures.
+    """Affiche les photos centrées : une grande, ou des miniatures (3 par rangée).
     previews : miniatures déjà encodées (image_to_data_uri), gardées dans le
     résultat et l'historique à la place des photos complètes (bien plus légères).
     (Un st.image placé entre deux st.markdown("<div>") n'est pas réellement
@@ -1350,8 +1351,8 @@ def render_preview(previews):
 # la galerie sont en général déjà réduites à cette taille dans le navigateur, avant
 # l'envoi (voir PHOTO_SHRINK_SCRIPT) : quelques centaines de Ko au lieu de plusieurs Mo.
 AI_IMAGE_MAX_DIM = 1280
-# Nombre maximal de photos analysées ensemble (plusieurs angles du même meuble).
-MAX_PHOTOS = 3
+# Nombre maximal de photos analysées ensemble (angles, détails, pièces d'un ensemble).
+MAX_PHOTOS = 5
 
 def prepare_image_for_ai(image, max_dim=AI_IMAGE_MAX_DIM):
     """Prépare une photo fraîchement ouverte (Image.open) pour l'IA : réduction
@@ -1371,6 +1372,15 @@ def prepare_image_for_ai(image, max_dim=AI_IMAGE_MAX_DIM):
         flat.paste(rgba, mask=rgba.getchannel("A"))
         return flat
     return image if image.mode == "RGB" else image.convert("RGB")
+
+def image_part(img):
+    """Photo prête à envoyer à l'IA, en JPEG. Passée telle quelle (objet PIL), la
+    bibliothèque Gemini l'enverrait en WebP sans perte : environ 10 fois plus lourd
+    (1,5 Mo par photo de 1280 px, près de 8 Mo pour 5 photos) et lent à encoder
+    (environ 0,5 s par photo sur le serveur, contre quelques millisecondes)."""
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG", quality=90)
+    return {"mime_type": "image/jpeg", "data": buffer.getvalue()}
 
 def photo_key(uploaded_file):
     return getattr(uploaded_file, "file_id", None) or f"{uploaded_file.name}-{uploaded_file.size}"
@@ -1464,7 +1474,7 @@ def find_best_model_dynamic(api_key):
         return FALLBACK_MODEL, str(e)
 
 # --- ANALYSE IA ---
-# Délai max de chaque appel à l'IA (analyse de 1 à 3 photos) avant d'afficher un
+# Délai max de chaque appel à l'IA (analyse de 1 à MAX_PHOTOS photos) avant d'afficher un
 # message clair. Une seule nouvelle tentative est faite, et seulement si l'IA répond
 # par une erreur de surcharge ou refuse le mode JSON : jamais après un délai dépassé.
 AI_TIMEOUT_SECONDS = 120
@@ -1568,13 +1578,15 @@ def analyze_image_pro(images, price, api_key, offer_details=""):
     - Écris en français simple, avec des phrases courtes.
     """
 
+    parts = [image_part(img) for img in images]  # encodées une fois, même si nouvel essai
+
     def generate(json_mode=True):
         # Mode JSON natif de Gemini : réponse directement exploitable (moins
         # d'"Erreur de lecture"). Délai max pour ne pas bloquer sur un réseau lent.
         config = {"response_mime_type": "application/json"} if json_mode else None
         model = genai.GenerativeModel(model_name, generation_config=config)
         response = model.generate_content(
-            [prompt, *images], request_options={"timeout": AI_TIMEOUT_SECONDS}
+            [prompt, *parts], request_options={"timeout": AI_TIMEOUT_SECONDS}
         )
         return response.text
 
