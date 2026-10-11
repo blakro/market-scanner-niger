@@ -48,7 +48,7 @@ Au marché de **Katako**, à **Wadata** ou sur **Facebook Marketplace**, ne vous
 
 ### Prérequis
 
-* Python 3.9 ou plus récent (3.10+ recommandé, pour profiter de la dernière version de Streamlit)
+* Python 3.10 ou plus récent recommandé (3.9 fonctionne, mais avec Streamlit 1.50/1.51 : les photos n'y sont pas allégées dans le navigateur avant l'envoi)
 * Une clé API Google Gemini ([Google AI Studio](https://aistudio.google.com/))
 
 ### Étapes

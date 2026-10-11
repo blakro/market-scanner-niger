@@ -1173,6 +1173,18 @@ def normalize_analysis(data):
         "recommandation_finale": text(data.get("recommandation_finale")),
     }
 
+def refusal_reason(data):
+    """Raison du refus donnée par l'IA, en texte lisible (même renvoyée en liste)."""
+    value = data.get("raison_refus")
+    if isinstance(value, dict):
+        value = list(value.values())
+    if isinstance(value, (list, tuple)):
+        value = " ".join(str(v).strip() for v in value if v not in (None, ""))
+    reason = str(value or "").strip()
+    if len(reason) > 300:
+        reason = reason[:300].rsplit(" ", 1)[0] + "…"
+    return reason
+
 def is_furniture_answer(data):
     """Lit le champ is_furniture, y compris s'il est renvoyé en texte ("true", "oui")."""
     value = data.get("is_furniture")
@@ -1329,15 +1341,27 @@ def render_preview(previews):
 # la galerie sont en général déjà réduites à cette taille dans le navigateur, avant
 # l'envoi (voir PHOTO_SHRINK_SCRIPT) : quelques centaines de Ko au lieu de plusieurs Mo.
 AI_IMAGE_MAX_DIM = 1280
+# Nombre maximal de photos analysées ensemble (plusieurs angles du même meuble).
+MAX_PHOTOS = 3
 
 def prepare_image_for_ai(image, max_dim=AI_IMAGE_MAX_DIM):
-    """Redimensionne l'image (photos de téléphone souvent énormes) pour un envoi
-    plus rapide et moins coûteux à l'IA, sans perte visible à cette résolution."""
-    img = image.copy()
-    if img.mode != "RGB":
-        img = img.convert("RGB")
-    img.thumbnail((max_dim, max_dim), Image.LANCZOS)
-    return img
+    """Prépare une photo fraîchement ouverte (Image.open) pour l'IA : réduction
+    (photos de téléphone souvent énormes), redressement selon l'orientation EXIF,
+    puis RGB avec un fond blanc sous les zones transparentes, comme dans le
+    navigateur. Réduite AVANT d'être redressée : aucune copie en pleine résolution."""
+    if image.format in ("JPEG", "MPO"):  # MPO : JPEG de téléphone avec image(s) jointe(s)
+        # Décodage directement à échelle réduite (si la photo n'a pas pu être
+        # réduite dans le navigateur) : bien plus rapide et moins gourmand en
+        # mémoire que de décoder une photo de 12 Mpx en entier.
+        image.draft("RGB", (max_dim, max_dim))
+    image.thumbnail((max_dim, max_dim), Image.LANCZOS)
+    ImageOps.exif_transpose(image, in_place=True)
+    if image.mode in ("RGBA", "LA", "PA") or (image.mode == "P" and "transparency" in image.info):
+        rgba = image.convert("RGBA")
+        flat = Image.new("RGB", rgba.size, (255, 255, 255))
+        flat.paste(rgba, mask=rgba.getchannel("A"))
+        return flat
+    return image if image.mode == "RGB" else image.convert("RGB")
 
 def photo_key(uploaded_file):
     return getattr(uploaded_file, "file_id", None) or f"{uploaded_file.name}-{uploaded_file.size}"
@@ -1351,13 +1375,7 @@ def load_photo(uploaded_file):
     key = photo_key(uploaded_file)
     if key not in cache:
         try:
-            img = Image.open(uploaded_file)
-            if img.format == "JPEG":
-                # Décodage directement à échelle réduite (si la photo n'a pas pu être
-                # réduite dans le navigateur) : bien plus rapide et moins gourmand en
-                # mémoire que de décoder une photo de 12 Mpx en entier.
-                img.draft("RGB", (AI_IMAGE_MAX_DIM, AI_IMAGE_MAX_DIM))
-            cache[key] = prepare_image_for_ai(ImageOps.exif_transpose(img))
+            cache[key] = prepare_image_for_ai(Image.open(uploaded_file))
         except Exception:
             cache[key] = None
     return cache[key]
@@ -1437,7 +1455,9 @@ def find_best_model_dynamic(api_key):
         return FALLBACK_MODEL, str(e)
 
 # --- ANALYSE IA ---
-# Délai max d'une analyse (jusqu'à 3 photos) avant d'afficher un message clair.
+# Délai max de chaque appel à l'IA (analyse de 1 à 3 photos) avant d'afficher un
+# message clair. Une seule nouvelle tentative est faite, et seulement si l'IA répond
+# par une erreur de surcharge ou refuse le mode JSON : jamais après un délai dépassé.
 AI_TIMEOUT_SECONDS = 120
 
 def analyze_image_pro(images, price, api_key):
@@ -1452,7 +1472,7 @@ def analyze_image_pro(images, price, api_key):
         price_context = "le vendeur n'a pas encore donné de prix : estime seulement sa valeur"
     prompt = f"""
     Tu es un expert menuisier à Niamey (Niger). Analyse ce meuble ({price_context}).
-    Tu reçois une ou plusieurs photos (jusqu'à 3 angles différents) qui doivent TOUTES montrer
+    Tu reçois une ou plusieurs photos (jusqu'à {MAX_PHOTOS} angles différents) qui doivent TOUTES montrer
     LE MÊME meuble : croise les informations entre les photos pour affiner ton diagnostic
     (structure, matériaux, défauts).
 
@@ -1551,10 +1571,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # INFO CHIP COMPACT (remplace st.info)
-st.markdown("""
+st.markdown(f"""
 <div class="info-chip">
     <span style="font-size:1.2em;">ℹ️</span>
-    <div><b>Une photo suffit</b>, ajoutez jusqu'à 3 angles pour une analyse plus précise. JPG · PNG · WEBP</div>
+    <div><b>Une photo suffit</b>, ajoutez jusqu'à {MAX_PHOTOS} angles pour une analyse plus précise. JPG · PNG · WEBP</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1643,16 +1663,16 @@ with tab_cam:
 
 with tab_upload:
     upload_imgs = st.file_uploader(
-        "Choisir une ou plusieurs images (max 3 angles)",
+        f"Choisir une ou plusieurs images (max {MAX_PHOTOS} angles)",
         type=["jpg", "png", "jpeg", "webp"],
         accept_multiple_files=True,
         label_visibility="collapsed",
         key=f"upload_{pv}"
     )
     if upload_imgs:
-        img_files = upload_imgs[:3]
-        if len(upload_imgs) > 3:
-            st.caption("⚠️ Seules les 3 premières photos seront analysées.")
+        img_files = upload_imgs[:MAX_PHOTOS]
+        if len(upload_imgs) > MAX_PHOTOS:
+            st.caption(f"⚠️ Seules les {MAX_PHOTOS} premières photos seront analysées.")
 
 # Réduction des photos DANS LE NAVIGATEUR, avant l'envoi : une photo de galerie
 # pèse souvent 3 à 6 Mo, soit plus d'une minute et demie d'envoi pour 3 photos sur
@@ -1663,6 +1683,10 @@ with tab_upload:
 # quelle. Non concernés (le décodage réduit côté serveur prend alors le relais) :
 # le glisser-déposer sur ordinateur, les navigateurs trop anciens et les versions de
 # Streamlit sans st.html avec JavaScript (repli iframe). Installé une fois par page.
+# Mini-photo de 2×1 px marquée « tournée d'un quart de tour » (EXIF orientation 6) :
+# un navigateur qui applique l'orientation l'affiche en 1×2 px.
+ORIENTATION_TEST_JPEG = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAYAAAAAAAD/2wBDAFA3PEY8MlBGQUZaVVBfeMiCeG5uePWvuZHI////////////////////////////////////////////////////2wBDAVVaWnhpeOuCguv/////////////////////////////////////////////////////////////////////////wAARCAABAAIDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwC7RRRQB//Z"
+
 PHOTO_SHRINK_SCRIPT = rf"""
 <script>
 (function() {{
@@ -1671,16 +1695,21 @@ PHOTO_SHRINK_SCRIPT = rf"""
     win.__gkPhotoShrink = true;
     // Navigateur trop ancien pour remplacer les fichiers d'un champ : on ne touche à rien.
     try {{ new win.DataTransfer(); }} catch (e) {{ return; }}
-    const MAX_DIM = {AI_IMAGE_MAX_DIM}, QUALITY = 0.85, MIN_BYTES = 300 * 1024;
+    const MAX_DIM = {AI_IMAGE_MAX_DIM}, MAX_FILES = {MAX_PHOTOS}, QUALITY = 0.85, MIN_BYTES = 300 * 1024;
     const SHRINKABLE = /^image\/(jpeg|png|webp)$/;
+
+    // La photo réduite perd ses métadonnées : on ne réduit que si le navigateur
+    // redresse lui-même les photos selon l'EXIF (Chrome 81+, Safari 13.1+...).
+    // Sinon, les photos d'origine partent et le serveur les redresse.
+    let orientationOK = false;
+    const probe = new win.Image();
+    probe.onload = () => {{ orientationOK = probe.naturalWidth === 1 && probe.naturalHeight === 2; }};
+    probe.src = '{ORIENTATION_TEST_JPEG}';
 
     async function shrink(file) {{
         if (!SHRINKABLE.test(file.type) || file.size < MIN_BYTES) return file;
         const url = win.URL.createObjectURL(file);
         try {{
-            // Un élément Image applique l'orientation EXIF dans tous les navigateurs
-            // récents (createImageBitmap ne le fait pas partout) : la photo réduite
-            // est donc déjà à l'endroit, même sans ses métadonnées.
             const img = new win.Image();
             img.src = url;
             await img.decode();
@@ -1688,7 +1717,10 @@ PHOTO_SHRINK_SCRIPT = rf"""
             const canvas = win.document.createElement('canvas');
             canvas.width = Math.round(img.naturalWidth * scale);
             canvas.height = Math.round(img.naturalHeight * scale);
-            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';  // fond blanc : la transparence deviendrait noire en JPEG
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
             const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', QUALITY));
             if (!blob || blob.size >= file.size) return file;
             const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
@@ -1700,34 +1732,50 @@ PHOTO_SHRINK_SCRIPT = rf"""
         }}
     }}
 
-    win.addEventListener('change', async function(event) {{
+    function note(uploader, text) {{
+        const el = win.document.createElement('div');
+        el.className = 'gk-shrink-note';
+        el.textContent = text;
+        uploader.after(el);
+        return el;
+    }}
+
+    // Streamlit lit la sélection sur l'événement "change" ; "input" est bloqué aussi,
+    // par précaution, pour qu'une future version ne reçoive pas les photos d'origine.
+    async function onSelect(event) {{
         const input = event.target;
         if (!input || input.tagName !== 'INPUT' || input.type !== 'file') return;
         const uploader = input.closest('[data-testid="stFileUploader"]');
-        if (!uploader) return;
-        // Notre propre événement (photos déjà réduites) : on laisse Streamlit le traiter.
-        if (input.dataset.gkShrunk) {{ delete input.dataset.gkShrunk; return; }}
+        if (!uploader || input.dataset.gkShrunk) return;  // nos propres événements
         const files = Array.from(input.files || []);
-        if (!files.some((f) => f.size >= MIN_BYTES && SHRINKABLE.test(f.type))) return;
+        if (!orientationOK || !files.some((f) => f.size >= MIN_BYTES && SHRINKABLE.test(f.type))) return;
         event.stopImmediatePropagation();
-        const note = win.document.createElement('div');
-        note.className = 'gk-shrink-note';
-        note.textContent = '⏳ Préparation des photos…';
-        uploader.after(note);
+        if (event.type !== 'change') return;
+        const wait = note(uploader, '⏳ Préparation des photos…');
         try {{
+            // L'app n'analyse que les premières photos : inutile de traiter et
+            // d'envoyer les autres sur une connexion lente.
             const shrunk = [];
-            for (const f of files) shrunk.push(await shrink(f));  // une à la fois : mémoire du téléphone
+            for (const f of files.slice(0, MAX_FILES)) shrunk.push(await shrink(f));  // une à la fois : mémoire du téléphone
             const dt = new win.DataTransfer();
             shrunk.forEach((f) => dt.items.add(f));
             input.files = dt.files;
+            if (files.length > MAX_FILES) {{
+                const info = note(uploader, 'ℹ️ ' + MAX_FILES + ' photos maximum : seules les ' + MAX_FILES + ' premières sont gardées.');
+                setTimeout(() => info.remove(), 6000);
+            }}
         }} catch (e) {{
             // Imprévu : les photos d'origine sont transmises plutôt que perdues.
         }} finally {{
-            note.remove();
+            wait.remove();
             input.dataset.gkShrunk = '1';
+            input.dispatchEvent(new win.Event('input', {{ bubbles: true }}));
             input.dispatchEvent(new win.Event('change', {{ bubbles: true }}));
+            delete input.dataset.gkShrunk;
         }}
-    }}, true);
+    }}
+    win.addEventListener('input', onSelect, true);
+    win.addEventListener('change', onSelect, true);
 }})();
 </script>
 """
@@ -2185,7 +2233,7 @@ if st.session_state.processing:
         elif not is_furniture_answer(raw_data):
             st.session_state.last_analysis = {
                 "status": "not_furniture", "previews": previews, "price": price_input,
-                "reason": str(raw_data.get("raison_refus") or "").strip()[:300],
+                "reason": refusal_reason(raw_data),
             }
         else:
             data = normalize_analysis(raw_data)
