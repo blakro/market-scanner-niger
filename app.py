@@ -752,6 +752,13 @@ st.markdown("""
         line-height: 1.45;
         margin-bottom: 1rem;
     }
+    /* MESSAGE PENDANT LA RÉDUCTION DES PHOTOS (avant l'envoi) */
+    .gk-shrink-note {
+        color: #4b5563 !important;
+        font-size: 0.85em;
+        font-weight: 600;
+        padding: 6px 2px 0;
+    }
     /* MENTION "FACULTATIF" À CÔTÉ DU PRIX */
     .optional-tag {
         font-size: 0.72em;
@@ -858,6 +865,7 @@ st.markdown("""
         .warning-banner { background: #3a2412; border-color: #78350f; color: #fcd34d !important; }
         .hint-banner { background: #1e2f4d; border-color: #2c4a75; color: #cfe2ff !important; }
         .optional-tag { background: #334155; color: #cbd5e1 !important; }
+        .gk-shrink-note { color: #94a3b8 !important; }
         .skeleton-shimmer {
             background: linear-gradient(90deg, #1e293b 25%, #273449 50%, #1e293b 75%);
             background-size: 200% 100%;
@@ -945,6 +953,9 @@ st.markdown("""
 HTML_SUPPORTS_JS = "unsafe_allow_javascript" in inspect.signature(st.html).parameters
 
 def inject_html(code, height=0):
+    # Attention : st.html filtre le code avec DOMPurify, qui supprime en entier tout
+    # script dont le texte contient « < » suivi d'une lettre, de « / » ou de « ! »
+    # (ex : une balise HTML citée dans un commentaire). Pas de balise dans les scripts.
     if HTML_SUPPORTS_JS:
         st.html(code, unsafe_allow_javascript=True)
     else:
@@ -1162,6 +1173,18 @@ def normalize_analysis(data):
         "recommandation_finale": text(data.get("recommandation_finale")),
     }
 
+def refusal_reason(data):
+    """Raison du refus donnée par l'IA, en texte lisible (même renvoyée en liste)."""
+    value = data.get("raison_refus")
+    if isinstance(value, dict):
+        value = list(value.values())
+    if isinstance(value, (list, tuple)):
+        value = " ".join(str(v).strip() for v in value if v not in (None, ""))
+    reason = str(value or "").strip()
+    if len(reason) > 300:
+        reason = reason[:300].rsplit(" ", 1)[0] + "…"
+    return reason
+
 def is_furniture_answer(data):
     """Lit le champ is_furniture, y compris s'il est renvoyé en texte ("true", "oui")."""
     value = data.get("is_furniture")
@@ -1299,27 +1322,46 @@ def image_to_data_uri(img, max_dim=480):
     thumb.save(buffer, format="JPEG", quality=80)
     return "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode()
 
-def render_preview(images):
+def render_preview(previews):
     """Affiche 1 à 3 photos centrées : une grande, ou une rangée de miniatures.
+    previews : miniatures déjà encodées (image_to_data_uri), gardées dans le
+    résultat et l'historique à la place des photos complètes (bien plus légères).
     (Un st.image placé entre deux st.markdown("<div>") n'est pas réellement
     enveloppé : on génère donc tout le bloc HTML d'un coup.)"""
-    if not images:
+    if not previews:
         return
-    layout = "preview-single" if len(images) == 1 else "preview-multi"
+    layout = "preview-single" if len(previews) == 1 else "preview-multi"
     tags = "".join(
-        f'<img src="{image_to_data_uri(img)}" alt="Photo du meuble {i + 1}">'
-        for i, img in enumerate(images)
+        f'<img src="{uri}" alt="Photo du meuble {i + 1}">'
+        for i, uri in enumerate(previews)
     )
     st.markdown(f'<div class="preview-wrap {layout}">{tags}</div>', unsafe_allow_html=True)
 
-def prepare_image_for_ai(image, max_dim=1280):
-    """Redimensionne l'image (photos de téléphone souvent énormes) pour un envoi
-    plus rapide et moins coûteux à l'IA, sans perte visible à cette résolution."""
-    img = image.copy()
-    if img.mode != "RGB":
-        img = img.convert("RGB")
-    img.thumbnail((max_dim, max_dim), Image.LANCZOS)
-    return img
+# Taille maximale (en pixels) des photos envoyées à l'IA. Les photos choisies dans
+# la galerie sont en général déjà réduites à cette taille dans le navigateur, avant
+# l'envoi (voir PHOTO_SHRINK_SCRIPT) : quelques centaines de Ko au lieu de plusieurs Mo.
+AI_IMAGE_MAX_DIM = 1280
+# Nombre maximal de photos analysées ensemble (plusieurs angles du même meuble).
+MAX_PHOTOS = 3
+
+def prepare_image_for_ai(image, max_dim=AI_IMAGE_MAX_DIM):
+    """Prépare une photo fraîchement ouverte (Image.open) pour l'IA : réduction
+    (photos de téléphone souvent énormes), redressement selon l'orientation EXIF,
+    puis RGB avec un fond blanc sous les zones transparentes, comme dans le
+    navigateur. Réduite AVANT d'être redressée : aucune copie en pleine résolution."""
+    if image.format in ("JPEG", "MPO"):  # MPO : JPEG de téléphone avec image(s) jointe(s)
+        # Décodage directement à échelle réduite (si la photo n'a pas pu être
+        # réduite dans le navigateur) : bien plus rapide et moins gourmand en
+        # mémoire que de décoder une photo de 12 Mpx en entier.
+        image.draft("RGB", (max_dim, max_dim))
+    image.thumbnail((max_dim, max_dim), Image.LANCZOS)
+    ImageOps.exif_transpose(image, in_place=True)
+    if image.mode in ("RGBA", "LA", "PA") or (image.mode == "P" and "transparency" in image.info):
+        rgba = image.convert("RGBA")
+        flat = Image.new("RGB", rgba.size, (255, 255, 255))
+        flat.paste(rgba, mask=rgba.getchannel("A"))
+        return flat
+    return image if image.mode == "RGB" else image.convert("RGB")
 
 def photo_key(uploaded_file):
     return getattr(uploaded_file, "file_id", None) or f"{uploaded_file.name}-{uploaded_file.size}"
@@ -1333,8 +1375,7 @@ def load_photo(uploaded_file):
     key = photo_key(uploaded_file)
     if key not in cache:
         try:
-            img = ImageOps.exif_transpose(Image.open(uploaded_file))
-            cache[key] = prepare_image_for_ai(img)
+            cache[key] = prepare_image_for_ai(Image.open(uploaded_file))
         except Exception:
             cache[key] = None
     return cache[key]
@@ -1414,7 +1455,10 @@ def find_best_model_dynamic(api_key):
         return FALLBACK_MODEL, str(e)
 
 # --- ANALYSE IA ---
-AI_TIMEOUT_SECONDS = 90
+# Délai max de chaque appel à l'IA (analyse de 1 à 3 photos) avant d'afficher un
+# message clair. Une seule nouvelle tentative est faite, et seulement si l'IA répond
+# par une erreur de surcharge ou refuse le mode JSON : jamais après un délai dépassé.
+AI_TIMEOUT_SECONDS = 120
 
 def analyze_image_pro(images, price, api_key):
     genai.configure(api_key=api_key)
@@ -1428,18 +1472,21 @@ def analyze_image_pro(images, price, api_key):
         price_context = "le vendeur n'a pas encore donné de prix : estime seulement sa valeur"
     prompt = f"""
     Tu es un expert menuisier à Niamey (Niger). Analyse ce meuble ({price_context}).
-    Tu reçois une ou plusieurs photos (jusqu'à 3 angles différents) qui doivent TOUTES montrer
+    Tu reçois une ou plusieurs photos (jusqu'à {MAX_PHOTOS} angles différents) qui doivent TOUTES montrer
     LE MÊME meuble : croise les informations entre les photos pour affiner ton diagnostic
     (structure, matériaux, défauts).
 
     Liste des objets acceptés : Canapé, fauteuil, table basse, meuble TV, lit, armoire, commode, chevet, table à manger, chaise, buffet, bureau, bibliothèque, console, meuble à chaussures, dressing, lit superposé, canapé-lit, banquette, table de cuisine, tabouret, meuble sous-vasque.
 
     RÈGLE DE VALIDATION STRICTE : examine CHAQUE photo individuellement.
-    Si NE SERAIT-CE QU'UNE SEULE des photos fournies ne montre pas un meuble de cette liste
-    (objet différent, personne, animal, véhicule, photo floue/vide, etc.), OU si les photos
-    montrent visiblement des meubles différents (pas le même objet sous plusieurs angles),
-    renvoie {{"is_furniture": false}} pour l'ensemble de la soumission, même si une ou
-    plusieurs des autres photos sont valides.
+    Une photo de DÉTAIL du même meuble (gros plan sur le tissu, le bois, un pied, un tiroir,
+    une charnière, une rayure, un assemblage...) est VALIDE, même si le meuble n'y apparaît
+    pas en entier : c'est justement ce qui permet un diagnostic précis.
+    En revanche, si NE SERAIT-CE QU'UNE SEULE des photos montre autre chose (objet différent,
+    personne, animal, véhicule, photo totalement floue ou vide, etc.), OU si les photos
+    montrent clairement des meubles différents, renvoie pour l'ensemble de la soumission,
+    même si les autres photos sont valides :
+    {{"is_furniture": false, "raison_refus": "Explication courte pour l'utilisateur, ex : La photo 2 montre une moto."}}
 
     Sinon, renvoie un JSON valide STRICT :
     {{
@@ -1524,10 +1571,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # INFO CHIP COMPACT (remplace st.info)
-st.markdown("""
+st.markdown(f"""
 <div class="info-chip">
     <span style="font-size:1.2em;">ℹ️</span>
-    <div><b>Une photo suffit</b>, ajoutez jusqu'à 3 angles pour une analyse plus précise. JPG · PNG · WEBP</div>
+    <div><b>Une photo suffit</b>, ajoutez jusqu'à {MAX_PHOTOS} angles pour une analyse plus précise. JPG · PNG · WEBP</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1616,16 +1663,124 @@ with tab_cam:
 
 with tab_upload:
     upload_imgs = st.file_uploader(
-        "Choisir une ou plusieurs images (max 3 angles)",
+        f"Choisir une ou plusieurs images (max {MAX_PHOTOS} angles)",
         type=["jpg", "png", "jpeg", "webp"],
         accept_multiple_files=True,
         label_visibility="collapsed",
         key=f"upload_{pv}"
     )
     if upload_imgs:
-        img_files = upload_imgs[:3]
-        if len(upload_imgs) > 3:
-            st.caption("⚠️ Seules les 3 premières photos seront analysées.")
+        img_files = upload_imgs[:MAX_PHOTOS]
+        if len(upload_imgs) > MAX_PHOTOS:
+            st.caption(f"⚠️ Seules les {MAX_PHOTOS} premières photos seront analysées.")
+
+# Réduction des photos DANS LE NAVIGATEUR, avant l'envoi : une photo de galerie
+# pèse souvent 3 à 6 Mo, soit plus d'une minute et demie d'envoi pour 3 photos sur
+# une connexion mobile lente (et des envois qui échouent). On intercepte la
+# sélection des fichiers (JPEG, PNG, WebP de plus de 300 Ko), on réduit chaque photo
+# à AI_IMAGE_MAX_DIM (orientation EXIF appliquée), puis on transmet les versions
+# allégées au composant Streamlit. En cas de souci, la photo d'origine part telle
+# quelle. Non concernés (le décodage réduit côté serveur prend alors le relais) :
+# le glisser-déposer sur ordinateur, les navigateurs trop anciens et les versions de
+# Streamlit sans st.html avec JavaScript (repli iframe). Installé une fois par page.
+# Mini-photo de 2×1 px marquée « tournée d'un quart de tour » (EXIF orientation 6) :
+# un navigateur qui applique l'orientation l'affiche en 1×2 px.
+ORIENTATION_TEST_JPEG = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAYAAAAAAAD/2wBDAFA3PEY8MlBGQUZaVVBfeMiCeG5uePWvuZHI////////////////////////////////////////////////////2wBDAVVaWnhpeOuCguv/////////////////////////////////////////////////////////////////////////wAARCAABAAIDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwC7RRRQB//Z"
+
+PHOTO_SHRINK_SCRIPT = rf"""
+<script>
+(function() {{
+    const win = window.parent;
+    if (win.__gkPhotoShrink) return;
+    win.__gkPhotoShrink = true;
+    // Navigateur trop ancien pour remplacer les fichiers d'un champ : on ne touche à rien.
+    try {{ new win.DataTransfer(); }} catch (e) {{ return; }}
+    const MAX_DIM = {AI_IMAGE_MAX_DIM}, MAX_FILES = {MAX_PHOTOS}, QUALITY = 0.85, MIN_BYTES = 300 * 1024;
+    const SHRINKABLE = /^image\/(jpeg|png|webp)$/;
+
+    // La photo réduite perd ses métadonnées : on ne réduit que si le navigateur
+    // redresse lui-même les photos selon l'EXIF (Chrome 81+, Safari 13.1+...).
+    // Sinon, les photos d'origine partent et le serveur les redresse.
+    let orientationOK = false;
+    const probe = new win.Image();
+    probe.onload = () => {{ orientationOK = probe.naturalWidth === 1 && probe.naturalHeight === 2; }};
+    probe.src = '{ORIENTATION_TEST_JPEG}';
+
+    async function shrink(file) {{
+        if (!SHRINKABLE.test(file.type) || file.size < MIN_BYTES) return file;
+        const url = win.URL.createObjectURL(file);
+        try {{
+            const img = new win.Image();
+            img.src = url;
+            await img.decode();
+            const scale = Math.min(1, MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight));
+            const canvas = win.document.createElement('canvas');
+            canvas.width = Math.round(img.naturalWidth * scale);
+            canvas.height = Math.round(img.naturalHeight * scale);
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';  // fond blanc : la transparence deviendrait noire en JPEG
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', QUALITY));
+            if (!blob || blob.size >= file.size) return file;
+            const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+            return new win.File([blob], name, {{ type: 'image/jpeg', lastModified: file.lastModified }});
+        }} catch (e) {{
+            return file;
+        }} finally {{
+            win.URL.revokeObjectURL(url);
+        }}
+    }}
+
+    function note(uploader, text) {{
+        const el = win.document.createElement('div');
+        el.className = 'gk-shrink-note';
+        el.textContent = text;
+        uploader.after(el);
+        return el;
+    }}
+
+    // Streamlit lit la sélection sur l'événement "change" ; "input" est bloqué aussi,
+    // par précaution, pour qu'une future version ne reçoive pas les photos d'origine.
+    async function onSelect(event) {{
+        const input = event.target;
+        if (!input || input.tagName !== 'INPUT' || input.type !== 'file') return;
+        const uploader = input.closest('[data-testid="stFileUploader"]');
+        if (!uploader || input.dataset.gkShrunk) return;  // nos propres événements
+        const files = Array.from(input.files || []);
+        if (!orientationOK || !files.some((f) => f.size >= MIN_BYTES && SHRINKABLE.test(f.type))) return;
+        event.stopImmediatePropagation();
+        if (event.type !== 'change') return;
+        const wait = note(uploader, '⏳ Préparation des photos…');
+        try {{
+            // L'app n'analyse que les premières photos : inutile de traiter et
+            // d'envoyer les autres sur une connexion lente.
+            const shrunk = [];
+            for (const f of files.slice(0, MAX_FILES)) shrunk.push(await shrink(f));  // une à la fois : mémoire du téléphone
+            const dt = new win.DataTransfer();
+            shrunk.forEach((f) => dt.items.add(f));
+            input.files = dt.files;
+            if (files.length > MAX_FILES) {{
+                const info = note(uploader, 'ℹ️ ' + MAX_FILES + ' photos maximum : seules les ' + MAX_FILES + ' premières sont gardées.');
+                setTimeout(() => info.remove(), 6000);
+            }}
+        }} catch (e) {{
+            // Imprévu : les photos d'origine sont transmises plutôt que perdues.
+        }} finally {{
+            wait.remove();
+            input.dataset.gkShrunk = '1';
+            input.dispatchEvent(new win.Event('input', {{ bubbles: true }}));
+            input.dispatchEvent(new win.Event('change', {{ bubbles: true }}));
+            delete input.dataset.gkShrunk;
+        }}
+    }}
+    win.addEventListener('input', onSelect, true);
+    win.addEventListener('change', onSelect, true);
+}})();
+</script>
+"""
+if HTML_SUPPORTS_JS:
+    inject_html(PHOTO_SHRINK_SCRIPT)
 
 # Décodage (mis en cache) dès l'ajout : une photo illisible est signalée tout de
 # suite au lieu de faire planter l'analyse.
@@ -1707,10 +1862,9 @@ elif not has_price:
 # --- RENDU DU RÉSULTAT (persistant via session_state) ---
 def render_result(result):
     status = result["status"]
-    images = result.get("images") or []
     price_for_render = result.get("price", 0)
 
-    render_preview(images)
+    render_preview(result.get("previews"))
 
     if status == "error":
         raw_msg = str(result.get("error_msg") or "")
@@ -1725,12 +1879,17 @@ def render_result(result):
             with st.expander("Détails techniques"):
                 st.code(raw_msg, language=None)
     elif status == "not_furniture":
+        # Raison donnée par l'IA (ex : "La photo 2 montre une moto") : le client sait
+        # quelle photo remplacer au lieu de deviner.
+        reason = result.get("reason")
+        reason_html = f'<div class="error-text"><b>{esc(reason)}</b></div>' if reason else ""
         st.markdown(
             '<div class="tech-card error-card">'
-            '<div class="error-title">🛑 Objet non reconnu</div>'
+            '<div class="error-title">🛑 Photo non acceptée</div>'
+            f'{reason_html}'
             '<div class="error-text">'
             'Objets acceptés : Tables, Lits, Canapés, Armoires, Fauteuils, Commodes, Bureaux, Chaises... '
-            'Toutes les photos doivent montrer le même meuble.'
+            'Toutes les photos doivent montrer le même meuble (les gros plans de détail sont acceptés).'
             '</div></div>',
             unsafe_allow_html=True
         )
@@ -2028,13 +2187,14 @@ if st.session_state.processing:
         st.session_state.last_analysis = {
             "status": "error",
             "error_msg": "Clé API manquante" if not api_key else "Aucune photo lisible",
-            "images": photos, "price": price_input,
+            "previews": [image_to_data_uri(img) for img in photos], "price": price_input,
         }
         st.session_state.processing = False
         st.session_state.scroll_to_result = True
     else:
         images = photos
-        render_preview(images)
+        previews = [image_to_data_uri(img) for img in images]
+        render_preview(previews)
 
         # Squelette animé pendant le calcul (retiré dès que le résultat est prêt)
         skeleton_placeholder = st.empty()
@@ -2048,7 +2208,9 @@ if st.session_state.processing:
         """, unsafe_allow_html=True)
 
         # Étapes affichées pendant le vrai temps d'attente de l'IA (pas de délai artificiel)
-        with st.status("🔎 Analyse de votre meuble...", expanded=True) as status_box:
+        status_label = (f"🔎 Analyse de vos {len(images)} photos..." if len(images) > 1
+                        else "🔎 Analyse de votre meuble...")
+        with st.status(status_label, expanded=True) as status_box:
             st.write("🔎 Reconnaissance de l'objet...")
             st.write("🧬 Analyse des matériaux et de la structure...")
             st.write("⚖️ Comparaison aux prix du marché nigérien...")
@@ -2062,15 +2224,16 @@ if st.session_state.processing:
         raw_data = extract_json(raw_text) if raw_text else None
         if not raw_text:
             st.session_state.last_analysis = {
-                "status": "error", "error_msg": info_msg, "images": images, "price": price_input
+                "status": "error", "error_msg": info_msg, "previews": previews, "price": price_input
             }
         elif raw_data is None:
             st.session_state.last_analysis = {
-                "status": "json_error", "images": images, "price": price_input
+                "status": "json_error", "previews": previews, "price": price_input
             }
         elif not is_furniture_answer(raw_data):
             st.session_state.last_analysis = {
-                "status": "not_furniture", "images": images, "price": price_input
+                "status": "not_furniture", "previews": previews, "price": price_input,
+                "reason": refusal_reason(raw_data),
             }
         else:
             data = normalize_analysis(raw_data)
@@ -2091,7 +2254,7 @@ if st.session_state.processing:
             }})
             st.session_state.last_analysis = {
                 "status": "success", "id": analysis_id, "data": data,
-                "images": images, "price": price_input
+                "previews": previews, "price": price_input
             }
             st.session_state.history.insert(0, {
                 "titre": data["titre"],

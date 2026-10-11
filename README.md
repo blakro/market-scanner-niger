@@ -13,9 +13,10 @@ Au marché de **Katako**, à **Wadata** ou sur **Facebook Marketplace**, ne vous
 ## ✨ Fonctionnalités
 
 **L'analyse**
-* 📸 **Analyse multi-angles** : prenez une photo (la caméra arrière est sélectionnée automatiquement) ou importez jusqu'à 3 photos du même meuble pour affiner le diagnostic.
+* 📸 **Analyse multi-angles** : prenez une photo (la caméra arrière est sélectionnée automatiquement) ou importez jusqu'à 3 photos du même meuble, gros plans de détail compris (tissu, pied, rayure...), pour affiner le diagnostic.
+* 📶 **Pensée pour les connexions lentes** : les photos de la galerie sont allégées sur le téléphone avant l'envoi (quelques centaines de Ko au lieu de plusieurs Mo).
 * 🧬 **Matériaux et état** : la « vérité » sous le vernis (vrai cuir ou simili, bois massif ou contreplaqué), avec des notes de solidité, de qualité des matériaux et de facilité de restauration.
-* 🛡️ **Filtre intelligent** : les photos qui ne montrent pas un meuble (moto, animal...) sont refusées.
+* 🛡️ **Filtre intelligent** : les photos qui ne montrent pas un meuble (moto, animal...) sont refusées, avec la raison du refus.
 * 📐 **Guide de cadrage** : des conseils intégrés pour prendre la photo qui donne les meilleurs résultats.
 
 **La décision**
@@ -47,7 +48,7 @@ Au marché de **Katako**, à **Wadata** ou sur **Facebook Marketplace**, ne vous
 
 ### Prérequis
 
-* Python 3.9 ou plus récent (3.10+ recommandé, pour profiter de la dernière version de Streamlit)
+* Python 3.10 ou plus récent recommandé (3.9 fonctionne, mais avec Streamlit 1.50/1.51 : les photos n'y sont pas allégées dans le navigateur avant l'envoi)
 * Une clé API Google Gemini ([Google AI Studio](https://aistudio.google.com/))
 
 ### Étapes
