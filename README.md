@@ -13,7 +13,8 @@ Au marché de **Katako**, à **Wadata** ou sur **Facebook Marketplace**, ne vous
 ## ✨ Fonctionnalités
 
 **L'analyse**
-* 📸 **Analyse multi-angles** : prenez une photo (la caméra arrière est sélectionnée automatiquement) ou importez jusqu'à 3 photos du même meuble, gros plans de détail compris (tissu, pied, rayure...), pour affiner le diagnostic.
+* 📸 **Analyse multi-photos** : prenez une photo (la caméra arrière est sélectionnée automatiquement) ou importez jusqu'à 5 photos, ou captures d'écran d'une annonce : plusieurs angles du même meuble, des gros plans de détail (tissu, pied, rayure...) ou les différentes pièces d'un même ensemble (salon 7 places, chambre à coucher...), même sans vue d'ensemble.
+* 📝 **Précisions sur l'offre** : indiquez ce que propose le vendeur (« salon 7 places, table basse comprise », « matelas compris »...) pour une estimation de l'offre complète, même si les photos ne montrent pas tout.
 * 📶 **Pensée pour les connexions lentes** : les photos de la galerie sont allégées sur le téléphone avant l'envoi (quelques centaines de Ko au lieu de plusieurs Mo).
 * 🧬 **Matériaux et état** : la « vérité » sous le vernis (vrai cuir ou simili, bois massif ou contreplaqué), avec des notes de solidité, de qualité des matériaux et de facilité de restauration.
 * 🛡️ **Filtre intelligent** : les photos qui ne montrent pas un meuble (moto, animal...) sont refusées, avec la raison du refus.
@@ -37,10 +38,11 @@ Au marché de **Katako**, à **Wadata** ou sur **Facebook Marketplace**, ne vous
 ## 🚀 Comment l'utiliser ?
 
 1. **Ouvrez l'application** sur votre téléphone : [market-scanner-niger.streamlit.app](https://market-scanner-niger.streamlit.app).
-2. **Ajoutez une photo** : onglet **📸 Prendre Photo**, ou **📂 Galerie** (jusqu'à 3 photos).
+2. **Ajoutez une photo** : onglet **📸 Prendre Photo**, ou **📂 Galerie** (jusqu'à 5 photos).
 3. **Entrez le prix** demandé par le vendeur, en FCFA. *Facultatif* : sans prix, vous obtenez la valeur estimée du meuble.
-4. Touchez **🔍 Lancer l'analyse**.
-5. Lisez le verdict, suivez le plan de négociation, faites les vérifications indiquées, puis envoyez le résumé sur WhatsApp ou donnez votre avis avec 👍/👎.
+4. *Facultatif* : précisez **ce que propose le vendeur** (ex : salon 7 places), surtout si les photos ne montrent pas tout.
+5. Touchez **🔍 Lancer l'analyse**.
+6. Lisez le verdict, suivez le plan de négociation, faites les vérifications indiquées, puis envoyez le résumé sur WhatsApp ou donnez votre avis avec 👍/👎.
 
 > ℹ️ Les estimations sont indicatives et réalisées par une IA à partir de vos photos : vérifiez toujours le meuble sur place avant de payer.
 
