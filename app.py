@@ -1325,9 +1325,9 @@ def render_preview(previews):
     )
     st.markdown(f'<div class="preview-wrap {layout}">{tags}</div>', unsafe_allow_html=True)
 
-# Taille maximale (en pixels) des photos envoyées à l'IA. Les photos de la galerie
-# sont déjà réduites à cette taille dans le navigateur, avant l'envoi (voir
-# PHOTO_SHRINK_SCRIPT) : une photo de téléphone de 4 Mo n'en pèse plus que ~0,3.
+# Taille maximale (en pixels) des photos envoyées à l'IA. Les photos choisies dans
+# la galerie sont en général déjà réduites à cette taille dans le navigateur, avant
+# l'envoi (voir PHOTO_SHRINK_SCRIPT) : quelques centaines de Ko au lieu de plusieurs Mo.
 AI_IMAGE_MAX_DIM = 1280
 
 def prepare_image_for_ai(image, max_dim=AI_IMAGE_MAX_DIM):
@@ -1657,21 +1657,25 @@ with tab_upload:
 # Réduction des photos DANS LE NAVIGATEUR, avant l'envoi : une photo de galerie
 # pèse souvent 3 à 6 Mo, soit plus d'une minute et demie d'envoi pour 3 photos sur
 # une connexion mobile lente (et des envois qui échouent). On intercepte la
-# sélection des fichiers, on réduit chaque photo à AI_IMAGE_MAX_DIM (orientation
-# EXIF appliquée), puis on transmet les versions allégées au composant Streamlit.
-# En cas de souci, la photo d'origine part telle quelle. Script installé une seule
-# fois par page ; non installé sur les anciennes versions de Streamlit (repli
-# iframe), où le décodage réduit côté serveur prend le relais.
+# sélection des fichiers (JPEG, PNG, WebP de plus de 300 Ko), on réduit chaque photo
+# à AI_IMAGE_MAX_DIM (orientation EXIF appliquée), puis on transmet les versions
+# allégées au composant Streamlit. En cas de souci, la photo d'origine part telle
+# quelle. Non concernés (le décodage réduit côté serveur prend alors le relais) :
+# le glisser-déposer sur ordinateur, les navigateurs trop anciens et les versions de
+# Streamlit sans st.html avec JavaScript (repli iframe). Installé une fois par page.
 PHOTO_SHRINK_SCRIPT = rf"""
 <script>
 (function() {{
     const win = window.parent;
     if (win.__gkPhotoShrink) return;
     win.__gkPhotoShrink = true;
+    // Navigateur trop ancien pour remplacer les fichiers d'un champ : on ne touche à rien.
+    try {{ new win.DataTransfer(); }} catch (e) {{ return; }}
     const MAX_DIM = {AI_IMAGE_MAX_DIM}, QUALITY = 0.85, MIN_BYTES = 300 * 1024;
+    const SHRINKABLE = /^image\/(jpeg|png|webp)$/;
 
     async function shrink(file) {{
-        if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < MIN_BYTES) return file;
+        if (!SHRINKABLE.test(file.type) || file.size < MIN_BYTES) return file;
         const url = win.URL.createObjectURL(file);
         try {{
             // Un élément Image applique l'orientation EXIF dans tous les navigateurs
@@ -1704,20 +1708,25 @@ PHOTO_SHRINK_SCRIPT = rf"""
         // Notre propre événement (photos déjà réduites) : on laisse Streamlit le traiter.
         if (input.dataset.gkShrunk) {{ delete input.dataset.gkShrunk; return; }}
         const files = Array.from(input.files || []);
-        if (!files.some((f) => f.size >= MIN_BYTES && /^image\//.test(f.type))) return;
+        if (!files.some((f) => f.size >= MIN_BYTES && SHRINKABLE.test(f.type))) return;
         event.stopImmediatePropagation();
         const note = win.document.createElement('div');
         note.className = 'gk-shrink-note';
         note.textContent = '⏳ Préparation des photos…';
         uploader.after(note);
-        const shrunk = [];
-        for (const f of files) shrunk.push(await shrink(f));  // une à la fois : mémoire du téléphone
-        note.remove();
-        const dt = new win.DataTransfer();
-        shrunk.forEach((f) => dt.items.add(f));
-        input.files = dt.files;
-        input.dataset.gkShrunk = '1';
-        input.dispatchEvent(new win.Event('change', {{ bubbles: true }}));
+        try {{
+            const shrunk = [];
+            for (const f of files) shrunk.push(await shrink(f));  // une à la fois : mémoire du téléphone
+            const dt = new win.DataTransfer();
+            shrunk.forEach((f) => dt.items.add(f));
+            input.files = dt.files;
+        }} catch (e) {{
+            // Imprévu : les photos d'origine sont transmises plutôt que perdues.
+        }} finally {{
+            note.remove();
+            input.dataset.gkShrunk = '1';
+            input.dispatchEvent(new win.Event('change', {{ bubbles: true }}));
+        }}
     }}, true);
 }})();
 </script>
